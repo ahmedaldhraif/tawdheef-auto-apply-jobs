@@ -1,0 +1,118 @@
+name: Publish website
+
+on:
+  workflow_run:
+    workflows: [Verify local tracker]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: website-production
+  cancel-in-progress: false
+
+jobs:
+  verify-commit:
+    if: >-
+      vars.WEBSITE_DEPLOY_ENABLED == 'true' &&
+      github.repository == 'ahmedaldhraif/tawdheef-auto-apply-jobs' &&
+      ((github.event_name == 'workflow_run' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_repository.full_name == github.repository) ||
+       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      sha: ${{ steps.checks.outputs.sha }}
+    steps:
+      - name: Require successful main checks for the exact commit
+        id: checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          if [[ "$(gh api "repos/$GH_REPO/commits/main" --jq .sha)" != "$SOURCE_SHA" ]]; then
+            echo 'A newer main commit exists; leave this deployment unpublished.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          for workflow in ci.yml checks.yml; do
+            run_id=$(gh api "repos/$GH_REPO/actions/workflows/$workflow/runs?head_sha=$SOURCE_SHA&branch=main&event=push&per_page=1" --jq '.workflow_runs[0].id // empty')
+            test -n "$run_id" || { echo "No main check run found for $workflow"; exit 1; }
+            gh run watch "$run_id" --repo "$GH_REPO" --exit-status --interval 15
+          done
+          echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: verify-commit
+    if: needs.verify-commit.outputs.sha != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: website-production
+      url: https://www.tawdheef.com
+    env:
+      VERCEL_ORG_ID: team_HCXkU8JOabkAltw7Jw7hLm4S
+      VERCEL_PROJECT_ID: prj_RIT5Jkf1El5exwYMeHdvgwxgdeQz
+      DEPLOY_SHA: ${{ needs.verify-commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.verify-commit.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install pinned deployment tooling
+        run: npm install --global vercel@66.6.0
+      - name: Read existing project configuration
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          test -n "$VERCEL_TOKEN" || { echo 'Add VERCEL_TOKEN to the website-production environment.'; exit 1; }
+          vercel pull --yes --environment=production
+          node --input-type=module -e 'import fs from "node:fs"; const p=JSON.parse(fs.readFileSync(".vercel/project.json")); if(p.projectId!==process.env.VERCEL_PROJECT_ID || p.orgId!==process.env.VERCEL_ORG_ID) throw Error("Wrong deployment target");'
+      - name: Build and validate the bilingual website
+        run: vercel build --prod
+      - name: Stage production without changing the domain
+        id: stage
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          vercel deploy --prebuilt --prod --skip-domain --yes --meta "githubCommitSha=$DEPLOY_SHA" > "$RUNNER_TEMP/website-deployment-url.txt"
+          deployment_url=$(tail -n 1 "$RUNNER_TEMP/website-deployment-url.txt")
+          echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
+      - name: Compare the staged site with the checked-out build
+        env:
+          DEPLOYMENT_URL: ${{ steps.stage.outputs.url }}
+        run: node scripts/marketing/verify-deployed-website.mjs "$DEPLOYMENT_URL"
+      - name: Publish only if this is still the latest main commit
+        id: promote
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          DEPLOYMENT_URL: ${{ steps.stage.outputs.url }}
+        run: |
+          set -euo pipefail
+          if [[ "$(gh api "repos/$GH_REPO/commits/main" --jq .sha)" != "$DEPLOY_SHA" ]]; then
+            echo 'A newer main commit exists; staged deployment was not promoted.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          vercel promote "$DEPLOYMENT_URL" --yes
+          echo 'published=true' >> "$GITHUB_OUTPUT"
+      - name: Verify the public domain against the same build
+        if: steps.promote.outputs.published == 'true'
+        run: |
+          node scripts/marketing/verify-deployed-website.mjs https://www.tawdheef.com
+          echo "Published https://www.tawdheef.com from commit $DEPLOY_SHA. English/Arabic sitemap pages and shared hero assets match the build." >> "$GITHUB_STEP_SUMMARY"
