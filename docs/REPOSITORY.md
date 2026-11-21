@@ -21,6 +21,16 @@ and jobs → explicitly choose Run actions. Preferences contains language, time
 zone and start-at-sign-in. Monitoring contains read-only schedules and reports.
 Installing a skill or pack never connects an account or starts a Run.
 
+## Website deployment and Native parity
+
+The public site uses the existing Vercel project for `www.tawdheef.com`. The optional [Publish website workflow](../.github/workflows/deploy-website.yml) deploys reviewed `main` commits through GitHub Actions without replacing the Vercel account's GitHub sign-in. It defaults to disabled until a maintainer configures its protected environment and explicitly enables it. See [website deployment](WEBSITE-DEPLOYMENT.md) for activation and verification. Pull requests do not receive automatic Vercel previews through this workflow.
+
+`vercel.json` is the build contract: generate directory packs, run `website/build.mjs`, then validate the generated site with `scripts/marketing/check-seo.mjs`. Only the website build output is published, including English/Arabic landing pages, Skills, guides, shared artwork, sitemap and agent navigation. The workflow waits for both existing CI workflows on the exact `main` commit, stages a production deployment, compares every sitemap page and key shared assets with the local build, and promotes only after those checks pass. It checks the public domain again after promotion.
+
+Keep a Native feature and its public explanation in the same pull request. When behavior or wording changes, update the English and Arabic sources together. When the visible app changes, review the shared app screenshots and native-agent assets, refresh affected screenshots using isolated public/synthetic records and update their provenance. The website deploy publishes committed copy and assets; it does not translate guides or capture a new screenshot automatically. Existing CI checks validate Native connection ownership, current setup instructions, bilingual routes, links and sitemap coverage.
+
+A website deployment does not release a desktop package, update an installed app or change private tracking data. Desktop builds and signing follow [the desktop release guide](DESKTOP-RELEASE.md). External connections continue to belong to the actual Codex/Claude client.
+
 Directory packs retain their version, bounded untrusted guidance and verified shared-company identity. Installing or updating a pack preserves private history and manual edits and never starts a run. Native profile work remains independent of applications, including after a confirmed application. Older app-owned vacancy rules and discoveries stay accessible through read-only history APIs; Native mode never runs them. Restart revokes unfinished run authority and pauses recurring application rules without opening provider sessions. See [local upgrade checks](LOCAL-UPGRADE.md).
 
 ```text
