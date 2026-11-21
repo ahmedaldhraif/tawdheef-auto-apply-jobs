@@ -16,7 +16,7 @@ After activation, a successful **Verify local tracker** push run on `main` start
 
 ## What gets published
 
-The build follows `vercel.json`, using the pinned Vercel CLI and Node 24 compatibility target. It publishes the built English and Arabic landing pages, Skills, guides, country pages, shared native-agent artwork, sitemap, robots and agent navigation. It does not publish the Native app's database or install/release a desktop app.
+The build follows `vercel.json`, using the pinned Vercel CLI and Node 24 compatibility target. Promotion uses Vercel's project API directly because the CLI promotion command also looks up user-level context, which project-only tokens cannot access. The promotion helper requires the exact project, production target, ready state and checked commit, then waits for the successful alias job and verifies that `www.tawdheef.com` belongs to that deployment. It publishes the built English and Arabic landing pages, Skills, guides, country pages, shared native-agent artwork, sitemap, robots and agent navigation. It does not publish the Native app's database or install/release a desktop app.
 
 The staged deployment is checked with `scripts/marketing/verify-deployed-website.mjs`: all sitemap pages must have the right canonical URL and match the checked-out build. Shared English/Arabic wordmark GIFs and fallback images, the native-agent script and crawl files must also match. Verification refuses other origins and HTTP redirects. A protected or unavailable deployment fails closed before promotion; do not disable deployment protection to bypass a failure. Configure an approved verification route before enabling publication if protection blocks these reads.
 

@@ -109,7 +109,7 @@ jobs:
             echo 'A newer main commit exists; staged deployment was not promoted.' >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          vercel promote "$DEPLOYMENT_URL" --yes
+          node scripts/marketing/promote-website.mjs "$DEPLOYMENT_URL"
           echo 'published=true' >> "$GITHUB_OUTPUT"
       - name: Verify the public domain against the same build
         if: steps.promote.outputs.published == 'true'
