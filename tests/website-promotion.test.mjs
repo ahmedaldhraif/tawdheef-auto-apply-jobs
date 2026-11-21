@@ -9,7 +9,7 @@ const fixtureToken = 'fixture-only-not-an-authentication-credential';
 const fixtureDeployment = () => ({ id: 'dpl_fixture', projectId, url: new URL(origin).hostname,
   target: 'production', readyState: 'READY', meta: { githubCommitSha: sha } });
 
-test('project-only promotion waits for its own successful alias job and actual domain assignment', async () => {
+test('project-only promotion confirms the live alias even when embedded deployment aliases stay empty', async () => {
   const calls = [];
   let polls = 0;
   const fetchImpl = async (url, options) => {
@@ -21,12 +21,11 @@ test('project-only promotion waits for its own successful alias job and actual d
       assert.equal(options.body, '{}');
       return new Response(null, { status: 200 });
     }
-    if (url.endsWith(`/projects/${projectId}`)) {
-      return Response.json({ id: projectId, lastAliasRequest: ++polls === 1
-        ? { toDeploymentId: 'dpl_previous', jobStatus: 'succeeded' }
-        : { toDeploymentId: 'dpl_fixture', jobStatus: 'succeeded' } });
+    if (url === `https://api.vercel.com/v4/aliases/www.tawdheef.com?projectId=${projectId}`) {
+      return Response.json({ projectId, alias: 'www.tawdheef.com',
+        deploymentId: ++polls === 1 ? 'dpl_previous' : 'dpl_fixture' });
     }
-    return Response.json({ ...fixtureDeployment(), alias: url.endsWith('/dpl_fixture') ? ['www.tawdheef.com'] : [] });
+    return Response.json({ ...fixtureDeployment(), alias: [] });
   };
   assert.deepEqual(await promoteWebsite(origin, { token: fixtureToken, expectedSha: sha, fetchImpl, sleepImpl: async () => {} }),
     { deploymentId: 'dpl_fixture', sha, domain: 'www.tawdheef.com', promoted: true });
@@ -47,19 +46,19 @@ test('foreign projects, wrong commits, unfinished builds and preview targets nev
   }
 });
 
-test('provider errors do not disclose credentials and incomplete alias results never claim success', async () => {
+test('provider errors do not disclose credentials and old or foreign alias results never claim success', async () => {
   await assert.rejects(promoteWebsite(origin, { token: fixtureToken, expectedSha: sha,
     fetchImpl: async () => new Response(fixtureToken, { status: 403 }) }), error =>
     error.message.includes('HTTP 403') && !error.message.includes(fixtureToken));
-  for (const state of ['failed', 'succeeded']) {
+  for (const patch of [{ deploymentId: 'dpl_previous' }, { projectId: 'prj_other' }, { alias: 'other.example' }]) {
     let clock = 0;
     await assert.rejects(promoteWebsite(origin, { token: fixtureToken, expectedSha: sha, now: () => clock,
       timeoutMs: 3000, sleepImpl: async () => { clock += 2000; }, fetchImpl: async (url, options) => {
         if (options.method === 'POST') return new Response(null, { status: 200 });
-        if (url.endsWith(`/projects/${projectId}`)) return Response.json({ id: projectId,
-          lastAliasRequest: { toDeploymentId: 'dpl_fixture', jobStatus: state } });
+        if (url.includes('/v4/aliases/')) return Response.json({ projectId, alias: 'www.tawdheef.com',
+          deploymentId: 'dpl_fixture', ...patch });
         return Response.json({ ...fixtureDeployment(), alias: [] });
-      } }), state === 'failed' ? /promotion failed/ : /not confirmed/);
+      } }), patch.deploymentId ? /not confirmed/ : /Unexpected project or domain/);
   }
   await assert.rejects(promoteWebsite('https://www.tawdheef.com', { token: fixtureToken, expectedSha: sha }), /staged project deployment/);
 });

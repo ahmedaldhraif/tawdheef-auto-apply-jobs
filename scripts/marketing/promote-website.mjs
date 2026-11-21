@@ -6,7 +6,7 @@ import { deploymentOrigin } from './verify-deployed-website.mjs';
 const projectId = 'prj_RIT5Jkf1El5exwYMeHdvgwxgdeQz';
 const domain = 'www.tawdheef.com';
 
-// Use only project endpoints. The CLI's promote command also requests a user
+// Use only this project's resources. The CLI promote command also requests a user
 // context, which project-scoped tokens deliberately cannot access.
 export async function promoteWebsite(value, {
   token, expectedSha, fetchImpl = fetch, sleepImpl = sleep, now = Date.now, timeoutMs = 180000,
@@ -35,17 +35,14 @@ export async function promoteWebsite(value, {
   await request(`/v10/projects/${projectId}/promote/${deployment.id}`, 'POST');
   const deadline = now() + timeoutMs;
   while (now() < deadline) {
-    const project = await request(`/v9/projects/${projectId}`);
-    if (project.id !== projectId) throw new Error('Unexpected project in promotion status.');
-    const job = project.lastAliasRequest;
-    if (job?.toDeploymentId === deployment.id && job.jobStatus === 'failed') {
-      throw new Error('Vercel reported that the production promotion failed.');
+    // A deployment created with --skip-domain can retain an empty embedded
+    // alias list after promotion. The domain mapping is the live authority.
+    const alias = await request(`/v4/aliases/${domain}?projectId=${projectId}`);
+    if (alias.projectId !== projectId || alias.alias !== domain) {
+      throw new Error('Unexpected project or domain in production mapping.');
     }
-    if (job?.toDeploymentId === deployment.id && job.jobStatus === 'succeeded') {
-      const promoted = await request('/v13/deployments/' + deployment.id);
-      if (promoted.alias?.includes(domain)) {
-        return { deploymentId: deployment.id, sha: expectedSha, domain, promoted: true };
-      }
+    if ((alias.deploymentId ?? alias.deployment?.id) === deployment.id) {
+      return { deploymentId: deployment.id, sha: expectedSha, domain, promoted: true };
     }
     await sleepImpl(2000);
   }
