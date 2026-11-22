@@ -10,6 +10,7 @@ The demo supports searching, country tabs, list filters, sample history, outcome
 - `vite.demo.config.mjs` replaces only `src/native-api.js` with `src/demo/api.js` at build time. The native build keeps its normal API transport.
 - `src/demo/store.mjs` supplies a bounded in-memory API. It imports no server, database, provider, client credentials or Node modules. Unsupported operations throw rather than fall through to a real API.
 - Demo records and view preferences live in memory. Reset clears both. The demo does not read or overwrite the native app's browser preferences or tracking store.
+- HTTP headers allow same-site framing only for the public demo. The real tracker and API retain `frame-ancestors 'none'`.
 - A Content Security Policy blocks network connections and form submission. The embedded page also has no popup, download, form or top-navigation sandbox permissions.
 - All companies, job roles, receipts and outcomes are fictional and labelled. A simulated run never starts a native Run, launches an agent, connects a provider or sends/submits anything.
 - The demo entry is `noindex` and stays out of the sitemap. The real bilingual landing, Skills and guide pages remain canonical.

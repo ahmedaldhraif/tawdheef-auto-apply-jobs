@@ -1,3 +1,4 @@
+import { contentSecurityPolicy } from "./http-policy.mjs";
 import express from "express";
 import { installMarketingRedirects } from './marketing-links.mjs';
 import { resolve } from "node:path";
@@ -61,7 +62,7 @@ app.use((req, res, next) => {
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader(
     "Content-Security-Policy",
-    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+    contentSecurityPolicy(req.path),
   );
   if (req.path.startsWith("/api/")) res.setHeader("Cache-Control", "no-store");
   next();

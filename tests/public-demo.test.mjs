@@ -1,3 +1,4 @@
+import { contentSecurityPolicy, DEMO_CSP } from '../server/http-policy.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -87,4 +88,11 @@ test('filtering to a profile-only sample company cannot invent a matching vacanc
   now += 5000;
   await store.request(`/runs/${run.id}`);
   assert.deepEqual((await store.request('/snapshot?directoryId=uae')).counts, { applications: 2, profiles: 4, emails: 2 });
+});
+
+test('only exact public demo resources can be framed; tracker and API protections are unchanged', () => {
+  for (const path of ['/demo/', '/demo/index.html', '/demo/assets/index-fixture.js']) assert.equal(contentSecurityPolicy(path), DEMO_CSP);
+  for (const path of ['/', '/api/bootstrap', '/api/native/runs', '/demo/../api/bootstrap', '/demo/api/bootstrap', '/demo-copy/', '/demo/%2e%2e/api/bootstrap']) assert.match(contentSecurityPolicy(path), /frame-ancestors 'none'/);
+  assert.match(DEMO_CSP, /connect-src 'none'/);
+  assert.match(DEMO_CSP, /form-action 'none'/);
 });

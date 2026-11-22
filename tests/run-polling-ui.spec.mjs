@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-async function fixture(page, { failFirst = false, holdFirst = false } = {}) {
+async function fixture(page, { failFirst = false, holdFirst = false, language = 'en' } = {}) {
   let run = {
     id: 'polling-fixture', directoryId: 'uae', directoryName: 'UAE', native: true,
     assistant: 'codex', total: 42, completed: 7, appliedCount: 0,
@@ -21,7 +21,7 @@ async function fixture(page, { failFirst = false, holdFirst = false } = {}) {
     if (cleanup) { cleanup.entered(); await cleanup.gate; }
     const body = await response.json();
     const { targets, ...summary } = run;
-    await route.fulfill({ json: { ...body, runs: [summary] } });
+    await route.fulfill({ json: { ...body, settings: { ...body.settings, language }, runs: [summary] } });
     if (cleanup) cleanup.completed = true;
   });
   await page.route('**/api/runs/polling-fixture', async route => {
@@ -136,4 +136,13 @@ test('slow reads never overlap and a late response cannot undo Stop', async ({ p
   page.__pollingBootstrapCleanup = { gate, completed: false, entered: () => { entered(); setTimeout(release, 150); } };
   await page.evaluate(() => { window.__trailingPollingBootstrap = fetch('/api/bootstrap').then(response => response.json()); });
   await started;
+});
+
+test('Arabic native progress stays translated without leaking fixture locale into English tests', async ({ page }) => {
+  await fixture(page, { language: 'ar' });
+  await page.locator('.run-banner').getByRole('button', { name: 'عرض التقدم', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'تقدم التشغيل', exact: true });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'إيقاف التشغيل', exact: true }).click();
+  await expect(dialog).toContainText('توقف التشغيل');
 });

@@ -52,10 +52,13 @@ for (const locale of ['en', 'ar']) for (const width of [390, 1280]) for (const c
 
 test('landing, Skills and guides share localized native demos with a phone full-page route', async ({ page }) => {
   for (const [path, locale] of [['/welcome/', 'en'], ['/welcome/ar/', 'ar'], ['/skills/', 'en'], ['/ar/skills/', 'ar'], ['/guides/use-the-skill/', 'en'], ['/ar/guides/use-the-skill/', 'ar']]) {
+    await page.setViewportSize({ width: 1280, height: 844 });
     await page.goto(path);
     const disclosure = page.locator('.native-preview-disclosure');
     if (await disclosure.count()) await disclosure.locator('summary').click();
     const frame = page.locator('.native-app-demo iframe');
+    await frame.scrollIntoViewIfNeeded();
+    await expect(page.frameLocator('.native-app-demo iframe').locator('.snapshot-total')).toHaveCount(3);
     await expect(frame).toHaveAttribute('src', `/demo/?lang=${locale}&embed=1`);
     await expect(page.locator('.demo-preview-heading a')).toHaveAttribute('href', `/demo/?lang=${locale}`);
     await page.setViewportSize({ width: 390, height: 844 });
@@ -63,4 +66,15 @@ test('landing, Skills and guides share localized native demos with a phone full-
     await expect(page.locator('.demo-mobile-open')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   }
+});
+
+test('demo framing is same-site only while the real tracker keeps its protection', async ({ request }) => {
+  for (const path of ['/', '/api/health']) {
+    const response = await request.get(path);
+    expect(response.headers()['content-security-policy']).toContain("frame-ancestors 'none'");
+  }
+  const response = await request.get('/demo/');
+  expect(response.headers()['content-security-policy']).toContain("frame-ancestors 'self'");
+  expect(response.headers()['content-security-policy']).toContain("connect-src 'none'");
+  expect(response.headers()['content-security-policy']).toContain("form-action 'none'");
 });
