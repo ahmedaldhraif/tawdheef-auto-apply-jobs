@@ -5,6 +5,7 @@ import "./list-options.css";
 
 /** One native top-layer menu for the less frequent list actions. */
 export default function ListOptions({
+  disabled = false,
   onColumns,
   onImport,
   onPacks,
@@ -139,7 +140,7 @@ export default function ListOptions({
 
   return (
     <>
-      <button
+      <button disabled={disabled}
         ref={trigger}
         id={`${id}-trigger`}
         type="button"

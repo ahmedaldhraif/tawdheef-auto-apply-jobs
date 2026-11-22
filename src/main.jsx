@@ -1,3 +1,4 @@
+import { api } from "./native-api.js";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -57,9 +58,9 @@ const LABELS = {
   closed: "Closed",
 };
 
-const savedView = (id) => {
+const readSavedView = (id, storage) => {
   try {
-    return JSON.parse(localStorage.getItem("apply-view-" + id) || "{}");
+    return JSON.parse(storage.getItem("apply-view-" + id) || "{}");
   } catch {
     return {};
   }
@@ -428,6 +429,19 @@ const AR = {
   "Stop any remaining work in your assistant.": "أوقف أي عمل متبقٍ في تطبيق مساعدك أيضاً.",
   "Note (optional)": "ملاحظة (اختياري)",
   "Ask your assistant to report a calendar you choose.": "اطلب من مساعدك تسجيل تقويم تختاره.",
+  "City": "المدينة", "Company type": "نوع الجهة", "Filter by city": "تصفية حسب المدينة", "Filter by company type": "تصفية حسب نوع الجهة",
+  "Working": "جارٍ العمل", "checked": "تمت مراجعتها", "completed": "مكتمل", "cancelled": "متوقف",
+  "Run": "تشغيل", "View progress": "عرض التقدم", "Stop": "إيقاف", "Run progress": "تقدم التشغيل", "Stop run": "إيقاف التشغيل",
+  "Accounts, career profiles, CVs and confirmed applications are recorded separately.": "تُسجّل الحسابات والملفات المهنية والسير الذاتية وطلبات التوظيف كلٌّ على حدة.",
+  "Available in the local app": "متاح في التطبيق المحلي",
+  "Demo only. No real applications or emails are sent.": "محاكاة فقط. لا تُرسل طلبات أو رسائل فعلية.",
+  "Try demo run": "جرّب تشغيلًا",
+  "Working on": "جارٍ العمل على",
+  "Finished this pass": "اكتملت المراجعة",
+  "Run stopped": "توقف التشغيل",
+  "companies checked": "جهات تمت مراجعتها",
+  "with confirmed submissions": "بطلبات مسجلة",
+  "company": "جهة", "companies": "جهات", "selected": "محددة", "in": "في",
   "Calendar request copied": "تم نسخ طلب التقويم",
   "Copy calendar request": "نسخ طلب التقويم",
 };
@@ -448,47 +462,38 @@ const safeHref = (url) => {
     return null;
   }
 };
-async function api(path, method = "GET", body) {
-  const res = await fetch("/api" + path, {
-    method,
-    headers: body ? { "Content-Type": "application/json" } : {},
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "This action could not finish.");
-  return data;
-}
-function App() {
+export function App({ demo = false, storage = localStorage } = {}) {
+  const savedView = id => readSavedView(id, storage);
   const settingsDraft = useRef(null);
   const nativeRunDraft = useRef(null);
   const [boot, setBoot] = useState(null),
     [active, setActive] = useState(
-      localStorage.getItem("apply-directory") || "uae",
+      storage.getItem("apply-directory") || "uae",
     ),
     [data, setData] = useState({ items: [], total: 0, statusCounts: {} }),
     [query, setQuery] = useState(
       () =>
-        savedView(localStorage.getItem("apply-directory") || "uae").query || "",
+        savedView(storage.getItem("apply-directory") || "uae").query || "",
     ),
     [status, setStatus] = useState(
       () =>
-        savedView(localStorage.getItem("apply-directory") || "uae").status ||
+        savedView(storage.getItem("apply-directory") || "uae").status ||
         "",
     ),
-    [companyTypes, setCompanyTypes] = useState(() => savedView(localStorage.getItem('apply-directory') || 'uae').companyTypes || []),
-    [locations, setLocations] = useState(() => savedView(localStorage.getItem('apply-directory') || 'uae').locations || []),
+    [companyTypes, setCompanyTypes] = useState(() => savedView(storage.getItem('apply-directory') || 'uae').companyTypes || []),
+    [locations, setLocations] = useState(() => savedView(storage.getItem('apply-directory') || 'uae').locations || []),
     [filterPending, setFilterPending] = useState(false),
     [selectedPreview, setSelectedPreview] = useState(null),
     [rowsRevision, setRowsRevision] = useState(0),
     [page, setPage] = useState(0),
     [sort, setSort] = useState(
       () =>
-        savedView(localStorage.getItem("apply-directory") || "uae").sort ||
+        savedView(storage.getItem("apply-directory") || "uae").sort ||
         "name",
     ),
     [direction, setDirection] = useState(
       () =>
-        savedView(localStorage.getItem("apply-directory") || "uae").direction ||
+        savedView(storage.getItem("apply-directory") || "uae").direction ||
         "asc",
     ),
     [selected, setSelected] = useState(new Set()),
@@ -664,7 +669,7 @@ function App() {
     return () => clearInterval(timer);
   }, [loadBoot, loadRows, hasActiveRun]);
   useEffect(() => {
-    localStorage.setItem("apply-directory", active);
+    storage.setItem("apply-directory", active);
     setSelected(new Set());
     setPage(0);
     setData({ items: [], total: 0, statusCounts: {} });
@@ -690,7 +695,7 @@ function App() {
     return () => { current = false; };
   }, [runScopeKey, rowsRevision]);
   useEffect(() => {
-    localStorage.setItem(
+    storage.setItem(
       "apply-view-" + active,
       JSON.stringify({ query, status, companyTypes, locations, sort, direction }),
     );
@@ -841,10 +846,11 @@ function App() {
           <TawdheefBrand language={lang} />
         </a>
         <div className="header-actions">
-          <button data-connections-trigger className="connection" onClick={() => setModal({ type: 'connections' })}><Plug />{t('Connections')}<span className={'connection-dot ' + (boot.nativeClient?.assistant === boot.settings.preferredAssistant && boot.nativeClient?.capabilities?.assistant?.localToolUseObserved === true && boot.nativeClient.capabilities.assistant.status === 'reported' ? 'online' : '')} /></button>
+          <button data-connections-trigger className="connection" disabled={demo} title={demo ? t("Available in the local app") : undefined} onClick={() => setModal({ type: 'connections' })}><Plug />{t('Connections')}<span className={'connection-dot ' + (boot.nativeClient?.assistant === boot.settings.preferredAssistant && boot.nativeClient?.capabilities?.assistant?.localToolUseObserved === true && boot.nativeClient.capabilities.assistant.status === 'reported' ? 'online' : '')} /></button>
           <span className="header-divider" />
           <button
             className="icon-button"
+            disabled={demo}
             aria-label={t("Settings")}
             title={t("Settings")}
             onClick={() => setModal({ type: "settings" })}
@@ -894,7 +900,7 @@ function App() {
             ))}
           </div>
           <button
-            className="add-directory"
+            className="add-directory" disabled={demo}
             onClick={event => { event.currentTarget.focus(); setModal({ type: "directory" }); }}
           >
             <Plus />
@@ -907,6 +913,7 @@ function App() {
               {directory?.name || "Your directory"}
               <button
                 className="icon-button subtle"
+                disabled={demo}
                 aria-label={t("Customize directory")}
                 onClick={() => setModal({ type: "directory", edit: directory })}
               >
@@ -922,7 +929,7 @@ function App() {
               onClick={() => setModal({ type: "run", ...(activeNativeRun ? { run: activeNativeRun } : {}) })}
             >
               <Play size={15} />
-              <span>{activeNativeRun ? "View progress" : runLabel}</span>
+              <span>{activeNativeRun ? t("View progress") : demo ? `${t("Run")} · ${runCount ?? "…"}` : runLabel}</span>
             </button>
           </div>
         </section>
@@ -941,7 +948,7 @@ function App() {
         )}
         {(activeNativeRun || boot.runs.find(r => r.native === true && r.directoryId === active)) && (() => {
           const run = activeNativeRun || boot.runs.find(r => r.native === true && r.directoryId === active);
-          return <RunProgress run={run} open={() => setModal({ type: 'run', run })} stop={() => perform('stop-run', async () => { updateRun(await api(`/runs/${run.id}/stop`, 'POST')); await refresh(); })} />;
+          return <RunProgress t={t} demo={demo} run={run} open={() => setModal({ type: 'run', run })} stop={() => perform('stop-run', async () => { updateRun(await api(`/runs/${run.id}/stop`, 'POST')); await refresh(); })} />;
         })()}
         {directory && <section className="directory-overview" aria-label={t('Progress and monitoring')}><DirectorySnapshot
           directoryId={active}
@@ -953,8 +960,8 @@ function App() {
           Dialog={Modal}
           t={t}
           onOpenCompany={companyId => openDetail({ id: companyId }, null, 'applications')}
-        /><MonitoringSummary config={boot.monitoring?.config} status={boot.monitoring?.status} error={boot.monitoring?.error} t={t} open={() => setModal({ type: 'monitoring' })} /></section>}
-        {directory && <DiscoveryPanel directoryId={active} directoryName={directory.name} revision={rowsRevision} assistant={boot.settings.preferredAssistant} t={t} />}
+        /><MonitoringSummary disabled={demo} config={boot.monitoring?.config} status={boot.monitoring?.status} error={boot.monitoring?.error} t={t} open={() => setModal({ type: 'monitoring' })} /></section>}
+        {directory && <DiscoveryPanel demo={demo} directoryId={active} directoryName={directory.name} revision={rowsRevision} assistant={boot.settings.preferredAssistant} t={t} />}
         <div
           className="table-surface"
           id={"directory-" + active}
@@ -1012,14 +1019,13 @@ function App() {
             <div className="table-tools">
               <button
                 className="add-company"
-                disabled={!directory}
-                onClick={() => setModal({ type: "company" })}
+                disabled={!directory || demo} title={demo ? t("Available in the local app") : undefined} onClick={() => setModal({ type: "company" })}
               >
                 <Plus />
                 {t("Add company")}
               </button>
               {directory && (
-                <ListOptions
+                <ListOptions disabled={demo}
                   onColumns={() => setModal({ type: "columns" })}
                   onImport={() => setModal({ type: "import" })}
                   onPacks={() => setModal({ type: 'packs', directory })}
@@ -1508,7 +1514,7 @@ function App() {
         }}
         Modal={Modal} t={t} close={() => setModal(modal.returnTo || null)} />}
       {modal?.type === "run" && directory && (
-        <RunDialog
+        <RunDialog demo={demo}
           settings={boot.settings}
           clientStatus={boot.nativeClient}
           draftRef={nativeRunDraft}
@@ -1550,7 +1556,7 @@ function App() {
           key={detail.company.id}
           pending={busy === 'undo'}
           detail={detail}
-          discovery={{ directoryId: active, directoryName: directory?.name, revision: rowsRevision, assistant: boot.settings.preferredAssistant, enabled: true }}
+          discovery={{ demo, directoryId: active, directoryName: directory?.name, revision: rowsRevision, assistant: boot.settings.preferredAssistant, enabled: true }}
           t={t}
           close={() => {
             detailRequest.current++;
@@ -2298,7 +2304,7 @@ function DetailPanel({ detail, discovery, t, close, save, archive, pending = fal
       ) : tab === "applications" ? (
         <>
           <p className="dialog-intro">
-            Accounts, career profiles, CVs and confirmed applications are recorded separately.
+            {t('Accounts, career profiles, CVs and confirmed applications are recorded separately.')}
           </p>
           {detail.sharedHistory && <p className="field-hint">{t('Shared company history from other directories is included.')}</p>}
           {!detail.applications.length && (
@@ -2456,4 +2462,4 @@ function Contacts({ company: c, t, edit }) {
     </div>
   );
 }
-createRoot(document.getElementById("root")).render(<App />);
+if (import.meta.env.MODE !== "demo") createRoot(document.getElementById("root")).render(<App />);

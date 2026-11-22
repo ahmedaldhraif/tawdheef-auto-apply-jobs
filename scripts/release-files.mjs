@@ -5,14 +5,15 @@ import { spawnSync } from 'node:child_process';
 import JSZip from 'jszip';
 
 export const publicRoots = ['src', 'server', 'bin', 'scripts', 'data', 'docs', 'skills', 'directories', 'website', 'public', 'tests', '.github', '.agents/skills', '.claude/skills'];
-export const publicFiles = ['package.json', 'package-lock.json', 'index.html', 'vite.config.mjs', 'vercel.json', 'playwright.config.mjs', 'skills-lock.json', 'AGENTS.md', 'CLAUDE.md', 'DESIGN.md', 'README.md', 'README.ar.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'Start Apply Tracker.cmd', 'Start Tawdheef.cmd', 'Start Tawdheef.command', 'start-tawdheef.sh', '.gitignore', '.gitattributes', '.nvmrc', 'CONTRIBUTING.md', 'CODE_OF_CONDUCT.md', 'llms.txt', 'SECURITY.md', 'CHANGELOG.md', '.agents/product-marketing.md'];
+export const publicFiles = ['package.json', 'package-lock.json', 'index.html', 'vite.config.mjs', 'vite.demo.config.mjs', 'vercel.json', 'playwright.config.mjs', 'skills-lock.json', 'AGENTS.md', 'CLAUDE.md', 'DESIGN.md', 'README.md', 'README.ar.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'Start Apply Tracker.cmd', 'Start Tawdheef.cmd', 'Start Tawdheef.command', 'start-tawdheef.sh', '.gitignore', '.gitattributes', '.nvmrc', 'CONTRIBUTING.md', 'CODE_OF_CONDUCT.md', 'llms.txt', 'SECURITY.md', 'CHANGELOG.md', '.agents/product-marketing.md'];
 const privatePath = /(^|\/)(?:\.local|\.git|\.tawdheef-setup|node_modules|outputs|release|agent-config|dist|site-dist|test-results|playwright-report|__pycache__)(\/|$)|(^|\/)\.env|(^|\/)(?:credentials[^/]*|client_secret[^/]*|connections\.private|token-cache|selected-account)\.json$|\.(?:sqlite[^/]*|db(?:3|-wal|-shm)?|log|pem|key|p8|p12|pfx|zip)$/i;
 // Country sources are versioned once. Download packs regenerate these copies.
 const generatedDirectoryFile = /^directories\/[^/]+\/[^/]+-directory(?:-\d+)?\.(?:json|csv)$/i;
+const generatedDemo = /^public\/demo(?:\/|$)/i;
 const generatedDownload = /^public\/downloads(?:\/|$)/i;
 export function isPublicSource(path) {
   const name = path.replaceAll('\\', '/');
-  return !name.split('/').some(part => part === '..') && !privatePath.test(name) && !generatedDirectoryFile.test(name) && !generatedDownload.test(name) &&
+  return !name.split('/').some(part => part === '..') && !privatePath.test(name) && !generatedDirectoryFile.test(name) && !generatedDownload.test(name) && !generatedDemo.test(name) &&
     (publicFiles.includes(name) || publicRoots.some(root => name.startsWith(`${root}/`)));
 }
 export async function sourceFiles(root) {
@@ -20,7 +21,7 @@ export async function sourceFiles(root) {
   async function walk(path) {
     for (const entry of await readdir(join(root, path), { withFileTypes: true })) {
       const name = `${path}/${entry.name}`;
-      if (privatePath.test(name)) continue;
+      if (privatePath.test(name) || generatedDemo.test(name)) continue;
       if (entry.isSymbolicLink()) throw new Error(`Public source must not include a symbolic link: ${name}`);
       if (entry.isDirectory()) await walk(name);
       else if (entry.isFile() && isPublicSource(name)) files.push(name);

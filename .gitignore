@@ -35,3 +35,6 @@ connections.private.json
 .DS_Store
 Thumbs.db
 .vercel/
+
+# Built public native demo
+/public/demo/

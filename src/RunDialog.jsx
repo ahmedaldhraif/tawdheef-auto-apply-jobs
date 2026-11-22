@@ -8,7 +8,7 @@ import './run-filters.css';
 import './agent-readiness.css';
 import { ReadinessSummary, useNativeReadiness } from './NativeReadiness.jsx';
 
-export function RunProgress({ run, open, stop, t = value => value }) {
+export function RunProgress({ run, open, stop, demo = false, t = value => value }) {
   const working = run.status === 'running';
   const needsYou = working && run.currentCheckpoint?.status === 'needs_you';
   const waiting = working && !run.activeCompanyId;
@@ -16,13 +16,13 @@ export function RunProgress({ run, open, stop, t = value => value }) {
   return <div className="run-banner" role="status">
     <RunActivityMark size={28} active={working && Boolean(run.activeCompanyId) && !needsYou} />
     {run.assistant && <ProviderLogo provider={run.assistant} size={20} decorative />}
-    <span>{run.directoryName ? `${run.directoryName} · ` : ''}{run.currentName ? `${run.currentName} · ` : ''}{needsYou ? t('Needs you') : waiting ? t('Waiting for assistant') : working ? `Working · ${run.completed} of ${total} checked` : `Run ${run.status} · ${run.completed} of ${total} checked`}</span>
-    <button onClick={open}>View progress</button>
-    {working && <button onClick={stop}>Stop</button>}
+    <span>{run.directoryName ? `${run.directoryName} · ` : ''}{run.currentName ? `${run.currentName} · ` : ''}{needsYou ? t('Needs you') : waiting ? t('Waiting for assistant') : working ? `${t('Working')} · ${run.completed} ${t('of')} ${total} ${t('checked')}` : `${t('Run')} ${t(run.status)} · ${run.completed} ${t('of')} ${total} ${t('checked')}`}</span>
+    <button onClick={open}>{t('View progress')}</button>
+    {working && <button onClick={stop}>{t('Stop')}</button>}
   </div>;
 }
 
-export default function RunDialog({ t, directory, selected, scope, scopeLabels, settings, clientStatus, preferredAssistant, onChangeAssistant, onOpenConnections, draftRef, run, onRunUpdate, pollingError, close, onStartNative, onResumeNative, onCopyHandoff, api, Modal, stopped }) {
+export default function RunDialog({ demo = false, t, directory, selected, scope, scopeLabels, settings, clientStatus, preferredAssistant, onChangeAssistant, onOpenConnections, draftRef, run, onRunUpdate, pollingError, close, onStartNative, onResumeNative, onCopyHandoff, api, Modal, stopped }) {
   const draft = draftRef?.current?.directoryId === directory.id ? draftRef.current : null;
   const [instructions, setInstructions] = useState(() => draft?.instructions || '');
   const assistant = (preferredAssistant || settings?.preferredAssistant) === 'claude-code' ? 'claude-code' : 'codex';
@@ -35,7 +35,7 @@ export default function RunDialog({ t, directory, selected, scope, scopeLabels, 
   const [previewRetry, setPreviewRetry] = useState(0);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [targetOffset, setTargetOffset] = useState(0), [targetPage, setTargetPage] = useState(null), [targetsError, setTargetsError] = useState(''), [targetsRetry, setTargetsRetry] = useState(0);
-  const readiness = useNativeReadiness({ api, assistant, actions, enabled: !run && Object.values(actions).some(Boolean), revision: JSON.stringify([settings?.applicationEmail, clientStatus?.capabilities]) });
+  const readiness = useNativeReadiness({ api, assistant, actions, enabled: !demo && !run && Object.values(actions).some(Boolean), revision: JSON.stringify([settings?.applicationEmail, clientStatus?.capabilities]) });
   const listScope = scope || { directoryId: directory.id, ...(selected?.size ? { companyIds: [...selected].sort() } : {}) };
   const scopeKey = JSON.stringify({ ...listScope, actions });
   const count = preview?.scopeKey === scopeKey ? preview.count : null;
@@ -91,7 +91,7 @@ export default function RunDialog({ t, directory, selected, scope, scopeLabels, 
     try {
       const result = await onStartNative(instructions, assistant, actions);
       onRunUpdate(result.run || result);
-      if (result.handoff) await copyHandoff(result.handoff, (result.run || result).id);
+      if (!demo && result.handoff) await copyHandoff(result.handoff, (result.run || result).id);
     } catch (failure) { setError(failure.message); }
     finally { setBusy(false); }
   }
@@ -101,27 +101,28 @@ export default function RunDialog({ t, directory, selected, scope, scopeLabels, 
     try {
       const result = await onResumeNative(run, companyId);
       onRunUpdate(result.run || result);
-      if (result.handoff) await copyHandoff(result.handoff, (result.run || result).id);
+      if (!demo && result.handoff) await copyHandoff(result.handoff, (result.run || result).id);
     } catch (failure) { setError(failure.message); }
     finally { setBusy(false); }
   }
   const footer = <div className="run-dialog-footer">
     {(error || pollingError || previewError) && <div className="run-dialog-error"><p className="form-error" role="alert">{error || pollingError || previewError}</p>{previewError && !run && <button type="button" onClick={() => { setPreview(null); setPreviewError(''); setPreviewRetry(value => value + 1); }}>Check again</button>}</div>}
     <div className="run-dialog-actions">
-      {run ? <><button onClick={close} disabled={busy}>Close</button>{working && <button type="button" className="primary" disabled={busy || (!currentHandoff && !onCopyHandoff)} onClick={async () => { setBusy(true); setError(''); try { await copyHandoff(); } catch (failure) { setError(failure.message); } finally { setBusy(false); } }}><Copy size={15} />{t(currentHandoffCopied ? 'Run request copied' : 'Copy run request')}</button>}{working && <button disabled={busy} onClick={async () => { setBusy(true); try { onRunUpdate(await api(`/runs/${run.id}/stop`, 'POST')); await stopped(); } catch (e) { setError(e.message); } finally { setBusy(false); } }}>Stop run</button>}</> : <>
-        <div className="run-assistant-selected"><ProviderLogo provider={assistant} size={20} decorative /><span>{assistantName}</span>{onChangeAssistant && <button type="button" className="text-button" disabled={busy} onClick={onChangeAssistant}>{t('Change')}</button>}</div>
-        <button onClick={close} disabled={busy}>Cancel</button>
-        <button className="primary" aria-label={busy ? 'Starting…' : startLabel} disabled={busy || !count || !hasAction || !onStartNative} onClick={startRun}><Play size={15} />{busy ? 'Starting…' : 'Run'}</button>
+      {run ? <><button onClick={close} disabled={busy}>{t('Close')}</button>{working && !demo && <button type="button" className="primary" disabled={busy || (!currentHandoff && !onCopyHandoff)} onClick={async () => { setBusy(true); setError(''); try { await copyHandoff(); } catch (failure) { setError(failure.message); } finally { setBusy(false); } }}><Copy size={15} />{t(currentHandoffCopied ? 'Run request copied' : 'Copy run request')}</button>}{working && <button disabled={busy} onClick={async () => { setBusy(true); try { onRunUpdate(await api(`/runs/${run.id}/stop`, 'POST')); await stopped(); } catch (e) { setError(e.message); } finally { setBusy(false); } }}>{t('Stop run')}</button>}</> : <>
+        <div className="run-assistant-selected"><ProviderLogo provider={assistant} size={20} decorative /><span>{assistantName}</span>{onChangeAssistant && !demo && <button type="button" className="text-button" disabled={busy} onClick={onChangeAssistant}>{t('Change')}</button>}</div>
+        <button onClick={close} disabled={busy}>{t('Cancel')}</button>
+        <button className="primary" aria-label={busy ? 'Starting…' : startLabel} disabled={busy || !count || !hasAction || !onStartNative} onClick={startRun}><Play size={15} />{t(busy ? 'Starting…' : demo ? 'Try demo run' : 'Run')}</button>
       </>}
     </div>
   </div>;
-  return <Modal title={run ? 'Run progress' : 'Run'} close={close} t={t} pending={busy} footer={footer}>
+  return <Modal title={t(run ? 'Run progress' : 'Run')} close={close} t={t} pending={busy} footer={footer}>
+    {demo && !run && <p className="field-hint">{t('Demo only. No real applications or emails are sent.')}</p>}
     {run ? <>
-      <div className="run-current"><RunActivityMark size={32} active={working && Boolean(run.activeCompanyId) && currentCheckpoint?.status !== 'needs_you'} /><ProviderLogo provider={run.assistant} size={24} /><strong>{working ? currentCheckpoint?.status === 'needs_you' ? t('Needs you') : (current?.name || run.currentName ? `Working on ${current?.name || run.currentName}` : t('Waiting for assistant')) : run.status === 'completed' ? 'Finished this pass' : 'Run stopped'}</strong></div>
-      <p className="dialog-intro">{run.completed} of {run.total ?? run.companyIds?.length ?? 0} companies checked. {confirmedCount} with confirmed submissions.</p>
+      <div className="run-current"><RunActivityMark size={32} active={working && Boolean(run.activeCompanyId) && currentCheckpoint?.status !== 'needs_you'} /><ProviderLogo provider={run.assistant} size={24} /><strong>{working ? currentCheckpoint?.status === 'needs_you' ? t('Needs you') : (current?.name || run.currentName ? `${t('Working on')} ${current?.name || run.currentName}` : t('Waiting for assistant')) : run.status === 'completed' ? t('Finished this pass') : t('Run stopped')}</strong></div>
+      <p className="dialog-intro">{run.completed} {t("of")} {run.total ?? run.companyIds?.length ?? 0} {t("companies checked")}. {confirmedCount} {t("with confirmed submissions")}.</p>
       {run.companyTypes?.length > 0 && <p className="field-hint">Company types: {COMPANY_TYPES.filter(type => run.companyTypes.includes(type.id)).map(type => t(type.label)).join(', ')}.</p>}
       {run.locations?.length > 0 && <p className="field-hint">Locations: {(run.locationLabels || run.locations.map(id => id === 'unknown' ? 'Unknown location' : id.replace(/^location:/, ''))).join(', ')}.</p>}
-      <p className="field-hint">{working ? <>{t('Paste the run request into your existing')} {run.assistant === 'claude-code' ? 'Claude Code' : 'Codex'} {t('chat. Keep Tawdheef open to record progress.')}</> : run.notes || 'Press Run again to retry unfinished companies.'}</p>
+      <p className="field-hint">{demo ? t('Demo only. No real applications or emails are sent.') : working ? <>{t('Paste the run request into your existing')} {run.assistant === 'claude-code' ? 'Claude Code' : 'Codex'} {t('chat. Keep Tawdheef open to record progress.')}</> : run.notes || 'Press Run again to retry unfinished companies.'}</p>
       {run.status === 'cancelled' && <p className="field-hint">{t('Stop any remaining work in your assistant.')}</p>}
       {working && currentHandoffFallback && <label>{t('Copy into your assistant')}<textarea rows={3} readOnly value={currentHandoffFallback} onFocus={event => event.target.select()} /></label>}
       {targetsError && <p className="form-error" role="alert">{targetsError} <button type="button" onClick={() => setTargetsRetry(value => value + 1)}>{t('Try again')}</button></p>}
@@ -135,7 +136,7 @@ export default function RunDialog({ t, directory, selected, scope, scopeLabels, 
       })}</ol>
       {currentTargetPage && <div className="form-actions"><span>{targetOffset + (currentTargetPage.items.length ? 1 : 0)}–{targetOffset + currentTargetPage.items.length} {t('of')} {currentTargetPage.total}</span><button disabled={targetOffset === 0} onClick={() => setTargetOffset(value => Math.max(0, value - 50))}>{t('Previous records')}</button><button disabled={targetOffset + 50 >= currentTargetPage.total} onClick={() => setTargetOffset(value => value + 50)}>{t('Next records')}</button></div>}
     </> : <>
-      <p className="dialog-intro" role="status"><strong>{count === null ? previewError ? 'Count unavailable' : 'Checking your list…' : `${count.toLocaleString()} ${hasSelection ? 'selected ' : ''}${count === 1 ? 'company' : 'companies'}`}</strong> in {directory.name}.</p>
+      <p className="dialog-intro" role="status"><strong>{count === null ? previewError ? 'Count unavailable' : 'Checking your list…' : `${count.toLocaleString()} ${hasSelection ? t('selected') + ' ' : ''}${t(count === 1 ? 'company' : 'companies')}`}</strong> {t("in")} {directory.name}.</p>
       {(locationLabels.length > 0 || companyTypeLabels.length > 0) && <p className="run-scope-summary">{[...locationLabels, ...companyTypeLabels].join(' · ')}</p>}
       {count === 0 && <p className="field-hint">No unfinished companies match this selection. Close Run to change your list.</p>}
       <fieldset className="run-action-options" aria-label={t('Run actions')} disabled={busy}>
@@ -152,11 +153,11 @@ export default function RunDialog({ t, directory, selected, scope, scopeLabels, 
         {!hasAction && <p className="field-hint">Choose at least one action to start.</p>}
       </fieldset>
 
-      {hasAction && <ReadinessSummary readiness={readiness} assistantName={assistantName} t={t} compact>
+      {hasAction && !demo && <ReadinessSummary readiness={readiness} assistantName={assistantName} t={t} compact>
         {!readiness.value?.ready && (onOpenConnections || onChangeAssistant) && <button type="button" className="text-button" disabled={busy} onClick={onOpenConnections || onChangeAssistant}>{t('Connections')}</button>}
       </ReadinessSummary>}
 
-      <details className="run-more-options"><summary>Add a note</summary>
+      <details className="run-more-options"><summary>{t('Add a note')}</summary>
         <label>{t('Note (optional)')}<textarea rows={2} placeholder="e.g. Product roles only, remote or hybrid" value={instructions} onChange={e => setInstructions(e.target.value)} /></label>
       </details>
     </>}

@@ -1,6 +1,6 @@
 # توظيف - أتمتة التقديم للوظائف وتتبع الطلبات
 
-[www.tawdheef.com](https://www.tawdheef.com/ar/) · [English](README.md)
+[www.tawdheef.com](https://www.tawdheef.com/ar/) · [جرّب التطبيق ببيانات تجريبية](https://www.tawdheef.com/demo/?lang=ar) · [English](README.md)
 
 <picture>
   <source media="(prefers-reduced-motion: reduce) and (prefers-color-scheme: dark)" srcset="public/brand/github-hero/wordmark-dark.png" />

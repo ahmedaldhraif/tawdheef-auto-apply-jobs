@@ -167,6 +167,8 @@ function structuredData(path,title,description){
  return '<script type="application/ld+json">'+JSON.stringify({'@context':'https://schema.org','@graph':graph}).replaceAll('<','\\u003c')+'</script>';
 }
 const staticOut=join(root,'site-dist'); await mkdir(staticOut,{recursive:true});
+// Build the same React interface with a closed, browser-only sample API.
+await import('../scripts/marketing/build-demo.mjs');
 for(const preview of [true,false]){
  const base=preview?join(root,'public'):staticOut;
  for(const [path,title,description,body,active,wide] of pages){

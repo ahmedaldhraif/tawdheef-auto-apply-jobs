@@ -1,3 +1,4 @@
+import { api } from "./native-api.js";
 import React, { useEffect, useRef, useState } from 'react';
 import { Modal } from './SharedUI.jsx';
 import './discovery-panel.css';
@@ -39,19 +40,11 @@ export const DISCOVERY_AR = {
 };
 
 export async function discoveryApi(path, method = 'GET', body) {
-  const response = await fetch(`/api/discovery${path}`, {
-    method, headers: body ? { 'Content-Type': 'application/json' } : {},
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  let value;
-  try { value = await response.json(); } catch { value = null; }
-  if (!response.ok) {
-    const missingRoute = response.status === 404 && (!value?.error || value.error === 'This action was not found.');
-    const error = new Error(missingRoute ? 'Restart Tawdheef to load job discovery, then try again.' : value?.error || 'This action could not finish.');
-    error.status = response.status;
+  try { return await api('/discovery' + path, method, body); }
+  catch (error) {
+    if (error.status === 404 && ['This action could not finish.', 'This action was not found.'].includes(error.message)) error.message = 'Restart Tawdheef to load job discovery, then try again.';
     throw error;
   }
-  return value;
 }
 const validUrl = value => { try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) ? url.href : null; } catch { return null; } };
 const dateLabel = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString() : null;
@@ -92,7 +85,7 @@ function InlineReview({ title, close, children, t }) {
   return <section className="discovery-inline" aria-label={title}><h3>{title}</h3><button type="button" onClick={close}>{t('Back to company')}</button>{children}</section>;
 }
 
-export default function DiscoveryPanel({ directoryId, directoryName, companyId, revision, assistant, inline = false, t = value => value }) {
+export default function DiscoveryPanel({ demo = false, directoryId, directoryName, companyId, revision, assistant, inline = false, t = value => value }) {
   const scope = JSON.stringify([directoryId, companyId || '', assistant || 'codex']);
   const [summary, setSummary] = useState(null), [summaryError, setSummaryError] = useState(''), [retry, setRetry] = useState(0);
   const [selection, setSelection] = useState(null), [view, setView] = useState('pending'), [cursors, setCursors] = useState(['']);
@@ -154,7 +147,7 @@ export default function DiscoveryPanel({ directoryId, directoryName, companyId, 
         {currentSummary?.nextStep && <p className="discovery-needs"><strong>{t('Needs you')}: </strong>{currentSummary.nextStep}</p>}
         {dateLabel(currentSummary?.lastCheckAt) && <p className="field-hint">{t('Last job check')}: <time dateTime={currentSummary.lastCheckAt}>{dateLabel(currentSummary.lastCheckAt)}</time></p>}
         <button ref={reviewTrigger} type="button" onClick={event => { event.currentTarget.focus(); openJobs(); }}>{t('Review jobs')}</button>
-        <CopyReview key={scope + assistant} directoryId={directoryId} companyId={companyId} assistant={assistant} t={t} />
+        {!demo && <CopyReview key={scope + assistant} directoryId={directoryId} companyId={companyId} assistant={assistant} t={t} />}
       </div>
     </details>
     {open && <Surface title={jobId ? detailData?.job?.title || t('Posting details') : `${t('Jobs & updates')} · ${directoryName || ''}`} close={close} t={t} wide>
@@ -162,7 +155,7 @@ export default function DiscoveryPanel({ directoryId, directoryName, companyId, 
         <button ref={backToList} type="button" onClick={() => { focusPage.current = true; setJobId(null); }}>{t('Back to jobs')}</button>
         {detailError ? <p className="form-error" role="alert">{t(detailError)}</p> : !detailData ? <p role="status">{t('Loading job details…')}</p> : <JobDetail value={detailData} t={t} />}
         {detailError && <button type="button" onClick={() => setRetry(value => value + 1)}>{t('Retry')}</button>}
-        <CopyReview key={scope + jobId + assistant} directoryId={directoryId} companyId={companyId} jobId={jobId} assistant={assistant} t={t} />
+        {!demo && <CopyReview key={scope + jobId + assistant} directoryId={directoryId} companyId={companyId} jobId={jobId} assistant={assistant} t={t} />}
       </> : <>
         <label className="discovery-view">{t('View')}<select value={view} onChange={event => { setView(event.target.value); setCursors(['']); }}><option value="pending">{t('To review')}</option><option value="needs_you">{t('Needs you')}</option><option value="all">{t('All')}</option></select></label>
         {listBusy && <p role="status" className="field-hint">{t('Loading jobs…')}</p>}
@@ -180,7 +173,7 @@ export default function DiscoveryPanel({ directoryId, directoryName, companyId, 
           <div className="discovery-pagination"><span>{listData.total} {t('jobs')}</span><button type="button" disabled={listBusy || cursors.length < 2} onClick={() => { focusPage.current = true; setCursors(value => value.slice(0, -1)); }}>{t('Previous')}</button><button type="button" disabled={listBusy || !listData.nextCursor} onClick={() => { focusPage.current = true; setCursors(value => [...value, listData.nextCursor]); }}>{t('Next')}</button></div>
         </>}
         {problems.length > 0 && <section className="discovery-source-problems"><h3>{t('Source needs attention')}</h3><p className="field-hint">{t('Previous jobs are kept when a source cannot be checked.')}</p><ul>{problems.map((problem, index) => <li key={`${problem.companyId}:${index}`}><strong>{problem.companyName}</strong><p>{problem.nextStep || t('Needs you')}</p>{validUrl(problem.sourceUrl) && <a href={validUrl(problem.sourceUrl)} target="_blank" rel="noreferrer">{t('View source')}</a>}{dateLabel(problem.observedAt) && <time dateTime={problem.observedAt}>{dateLabel(problem.observedAt)}</time>}</li>)}</ul></section>}
-        <CopyReview key={scope + assistant} directoryId={directoryId} companyId={companyId} assistant={assistant} t={t} />
+        {!demo && <CopyReview key={scope + assistant} directoryId={directoryId} companyId={companyId} assistant={assistant} t={t} />}
       </>}
     </Surface>}
   </>;
