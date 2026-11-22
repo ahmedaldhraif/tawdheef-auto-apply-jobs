@@ -1019,8 +1019,7 @@ export function App({ demo = false, storage = localStorage } = {}) {
             <div className="table-tools">
               <button
                 className="add-company"
-                disabled={!directory}
-                disabled={demo} title={demo ? t("Available in the local app") : undefined} onClick={() => setModal({ type: "company" })}
+                disabled={!directory || demo} title={demo ? t("Available in the local app") : undefined} onClick={() => setModal({ type: "company" })}
               >
                 <Plus />
                 {t("Add company")}

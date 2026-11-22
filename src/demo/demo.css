@@ -33,3 +33,8 @@
 .demo-next{display:flex;gap:20px;align-items:center;flex-wrap:wrap;padding:0 20px 24px}
 .demo-next a{min-height:44px;display:inline-flex;align-items:center;color:inherit;text-underline-offset:4px}
 .demo-next .primary{padding:10px 16px;color:#fff;text-decoration:none;border-radius:8px;background:#252525}
+
+/* Keep the public trial focused on supported, working native controls. */
+[data-demo] .header-actions,[data-demo] .add-directory,[data-demo] .directory-heading h1 .icon-button,[data-demo] .monitor-summary,[data-demo] .table-tools{display:none}
+[data-embedded="true"] .demo-instruction,[data-embedded="true"] .demo-boundary{display:none}
+[data-embedded="true"] .demo-toolbar{padding-block:6px}
