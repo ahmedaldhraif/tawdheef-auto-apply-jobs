@@ -1,11 +1,12 @@
 import { escapeHtml as esc } from './markdown.mjs';
 
-// Shared, authentic Native app capture. The app itself currently uses a light UI.
+// Every public entry point uses the working React app with a browser-only API.
 export function appPreview(locale='en',{eager=false}={}) {
  const ar=locale==='ar';
- const alt=ar?'واجهة توظيف: دليل الشركات والمتابعة وتحديثات الوظائف وتقدم الملفات المهنية':'Tawdheef native app: company directory, monitoring, job updates and career profile progress';
- const caption=ar?'التطبيق الفعلي ببيانات شركات عامة. لم يبدأ أي تشغيل ولم تُرسل طلبات.':'Actual app with public company research. No Runs started or applications sent.';
- return `<figure class="native-app-preview" id="native-app-preview"><div class="tour-frame" dir="ltr"><picture><source media="(max-width:600px)" srcset="/site-assets/walkthrough/native-mobile-light.jpg" width="390" height="820"/><img src="/site-assets/walkthrough/native-desktop-light.jpg" width="1100" height="760" alt="${esc(alt)}" decoding="async" loading="${eager?'eager':'lazy'}" ${eager?'fetchpriority="high"':''}/></picture></div><figcaption>${esc(caption)}</figcaption></figure>`;
+ const href=`/demo/?lang=${ar?'ar':'en'}`;
+ const title=ar?'جرّب توظيف ببيانات تجريبية':'Try Tawdheef with sample data';
+ const caption=ar?'واجهة التطبيق الفعلية. بيانات افتراضية، دون إرسال طلبات أو رسائل.':'The actual app interface. Fictional data. No real applications or emails.';
+ return `<figure class="native-app-preview native-app-demo"><div class="demo-preview-heading"><span>${esc(ar?'جرّب التطبيق':'Try the app')}</span><a href="${href}">${esc(ar?'فتح التجربة':'Open demo')} <span aria-hidden="true">↗</span></a></div><div class="tour-frame"><iframe src="${href}&amp;embed=1" title="${esc(title)}" width="1100" height="700" loading="${eager?'eager':'lazy'}" sandbox="allow-scripts allow-same-origin" referrerpolicy="no-referrer"></iframe></div><a class="demo-mobile-open button" href="${href}">${esc(ar?'جرّب التطبيق':'Try the app')}</a><figcaption>${esc(caption)}</figcaption></figure><script type="module" src="/site-assets/app-demo.js"></script>`;
 }
-export function walkthrough(locale='en'){return `<section class="product-tour" id="walkthrough" aria-label="${locale==='ar'?'واجهة توظيف':'Tawdheef app preview'}">${appPreview(locale,{eager:true})}</section>`;}
-export function previewDisclosure(locale='en'){return `<details class="native-preview-disclosure"><summary>${locale==='ar'?'شاهد التطبيق الفعلي':'See the actual app'}</summary>${appPreview(locale)}</details>`;}
+export function walkthrough(locale='en'){return `<section class="product-tour" id="walkthrough" aria-label="${locale==='ar'?'تجربة توظيف':'Tawdheef interactive demo'}">${appPreview(locale,{eager:true})}</section>`;}
+export function previewDisclosure(locale='en'){return `<details class="native-preview-disclosure"><summary>${locale==='ar'?'جرّب التطبيق ببيانات تجريبية':'Try the app with sample data'}</summary>${appPreview(locale)}</details>`;}

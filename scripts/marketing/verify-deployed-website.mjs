@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 const sharedAssets = [
   '/brand/github-hero/wordmark-light.gif', '/brand/github-hero/wordmark-dark.gif',
   '/brand/github-hero/wordmark-light.png', '/brand/github-hero/wordmark-dark.png',
-  '/site-assets/hero-native-agent.js', '/llms.txt', '/sitemap.xml', '/robots.txt',
+  '/site-assets/hero-native-agent.js', '/site-assets/app-demo.js', '/demo/', '/llms.txt', '/sitemap.xml', '/robots.txt',
 ];
 
 export function deploymentOrigin(value) {
@@ -36,21 +36,25 @@ export async function verifyDeployedWebsite(value, { directory = 'site-dist', fe
   if (!pages.includes('/') || !pages.includes('/ar/') || !pages.includes('/skills/') || !pages.includes('/ar/skills/')) {
     throw new Error('The bilingual landing and Skills routes must be present.');
   }
+  const demoHtml = await readFile(resolve(directory, 'demo/index.html'), 'utf8');
+  const demoAssets = [...new Set([...demoHtml.matchAll(/(?:src|href)="(\/demo\/assets\/[a-zA-Z0-9_.-]+)"/g)].map(match => match[1]))];
+  if (!demoAssets.some(path => path.endsWith('.js')) || !demoAssets.some(path => path.endsWith('.css'))) throw new Error('The checked native demo build is missing its script or styles.');
+  const assets = [...sharedAssets, ...demoAssets];
   const results = [];
-  const targets = [...pages.map(path => ({ path, page: true })), ...sharedAssets.map(path => ({ path, page: false }))];
+  const targets = [...pages.map(path => ({ path, page: true })), ...assets.map(path => ({ path, page: false }))];
   for (let offset = 0; offset < targets.length; offset += 4) {
     await Promise.all(targets.slice(offset, offset + 4).map(async ({ path, page }) => {
       try {
         const response = await fetchImpl(origin + path, { redirect: 'error', signal: AbortSignal.timeout(20000) });
         if (response.status !== 200) throw new Error(`HTTP ${response.status}; protected deployments need an authorized verification route.`);
         const actual = Buffer.from(await response.arrayBuffer());
-        const expected = await readFile(resolve(directory, '.' + (page ? path + 'index.html' : path)));
+        const expected = await readFile(resolve(directory, '.' + (page || path.endsWith('/') ? path + 'index.html' : path)));
         const binary = /\.(gif|png)$/.test(path);
         const html = actual.toString('utf8');
         if (page && html.match(/<link\s+rel="canonical"\s+href="([^"]+)"/i)?.[1] !== canonicalOrigin + path) {
           throw new Error('Canonical URL does not match this route.');
         }
-        const received = page && origin !== canonicalOrigin ? stripToolbar(normalize(html)) : normalize(html);
+        const received = (page || path === '/demo/') && origin !== canonicalOrigin ? stripToolbar(normalize(html)) : normalize(html);
         if (binary ? !actual.equals(expected) : received !== normalize(expected.toString('utf8'))) {
           throw new Error('Deployed content differs from the checked-out build.');
         }
@@ -60,7 +64,7 @@ export async function verifyDeployedWebsite(value, { directory = 'site-dist', fe
       }
     }));
   }
-  return { origin, pages: pages.length, assets: sharedAssets.length, failures: results.filter(item => !item.ok) };
+  return { origin, pages: pages.length, assets: assets.length, failures: results.filter(item => !item.ok) };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

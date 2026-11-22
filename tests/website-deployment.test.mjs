@@ -25,9 +25,10 @@ test('only matching bilingual pages and exact shared assets pass staged and publ
   files.set('/sitemap.xml', Buffer.from(`<urlset>${routes.map(path => `<url><loc>${production}${path}</loc></url>`).join('')}</urlset>`));
   for (const path of ['/brand/github-hero/wordmark-light.gif', '/brand/github-hero/wordmark-dark.gif',
     '/brand/github-hero/wordmark-light.png', '/brand/github-hero/wordmark-dark.png']) files.set(path, Buffer.from([0, 255, 8, 128]));
-  for (const path of ['/site-assets/hero-native-agent.js', '/llms.txt', '/robots.txt']) files.set(path, Buffer.from('Public fixture\n'));
+  for (const path of ['/site-assets/hero-native-agent.js', '/site-assets/app-demo.js', '/demo/assets/fixture.js', '/demo/assets/fixture.css', '/llms.txt', '/robots.txt']) files.set(path, Buffer.from('Public fixture\n'));
+  files.set('/demo/', Buffer.from('<script type="module" src="/demo/assets/fixture.js"></script><link rel="stylesheet" href="/demo/assets/fixture.css">'));
   for (const [path, content] of files) {
-    const destination = join(directory, '.' + (routes.includes(path) ? path + 'index.html' : path));
+    const destination = join(directory, '.' + (path.endsWith('/') ? path + 'index.html' : path));
     await mkdir(dirname(destination), { recursive: true });
     await writeFile(destination, content);
   }
@@ -40,19 +41,21 @@ test('only matching bilingual pages and exact shared assets pass staged and publ
     let body = files.get(path);
     if (path === changed) body = Buffer.from('Outdated native agent');
     if (path === '/ar/skills/' && canonicalMismatch) body = Buffer.from(`<link rel="canonical" href="${production}/skills/">`);
-    if (url.startsWith(preview) && routes.includes(path)) body = Buffer.from(body.toString() + '<script async data-explicit-opt-in="true" data-deployment-id="fixture" src="https://vercel.live/_next-live/feedback/feedback.js"></script>');
+    if (url.startsWith(preview) && (routes.includes(path) || path === '/demo/')) body = Buffer.from(body.toString() + '<script async data-explicit-opt-in="true" data-deployment-id="fixture" src="https://vercel.live/_next-live/feedback/feedback.js"></script>');
     return new Response(body, { status });
   };
   for (const origin of [production, preview]) {
     const result = await verifyDeployedWebsite(origin, { directory, fetchImpl });
-    assert.deepEqual(result, { origin, pages: 6, assets: 8, failures: [] });
+    assert.deepEqual(result, { origin, pages: 6, assets: 12, failures: [] });
   }
   changed = '/brand/github-hero/wordmark-dark.gif';
+  assert.deepEqual((await verifyDeployedWebsite(preview, { directory, fetchImpl })).failures.map(item => item.path), [changed]);
+  changed = '/demo/assets/fixture.js';
   assert.deepEqual((await verifyDeployedWebsite(preview, { directory, fetchImpl })).failures.map(item => item.path), [changed]);
   changed = '';
   canonicalMismatch = true;
   assert.deepEqual((await verifyDeployedWebsite(production, { directory, fetchImpl })).failures.map(item => item.path), ['/ar/skills/']);
   canonicalMismatch = false;
   status = 401;
-  assert.equal((await verifyDeployedWebsite(preview, { directory, fetchImpl })).failures.length, 14);
+  assert.equal((await verifyDeployedWebsite(preview, { directory, fetchImpl })).failures.length, 18);
 });

@@ -11,7 +11,7 @@
 
 [![MIT license](https://img.shields.io/github/license/ahmedaldhraif/tawdheef-auto-apply-jobs?color=5a2aff)](LICENSE) [![Build and tests](https://github.com/ahmedaldhraif/tawdheef-auto-apply-jobs/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ahmedaldhraif/tawdheef-auto-apply-jobs/actions/workflows/ci.yml) [![Contributions welcome](https://img.shields.io/badge/contributions-welcome-5a2aff)](CONTRIBUTING.md)
 
-[Get started](docs/guides/use-the-skill.md) · [Skills](https://www.tawdheef.com/skills/) · [Directory packs](directories/README.md) · [Guides](docs/guides/README.md) · [Contribute](CONTRIBUTING.md) · [العربية](README.ar.md)
+[Try the demo](https://www.tawdheef.com/demo/?lang=en) · [Get started](docs/guides/use-the-skill.md) · [Skills](https://www.tawdheef.com/skills/) · [Directory packs](directories/README.md) · [Guides](docs/guides/README.md) · [Contribute](CONTRIBUTING.md) · [العربية](README.ar.md)
 
 **Find matching jobs. Build career profiles.**
 

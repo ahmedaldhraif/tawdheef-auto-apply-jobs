@@ -79,7 +79,8 @@ test('homepage copies the skill install command and links to actual app setup', 
   await captureClipboard(page);
   await page.goto('/welcome/');
   await expect(page.locator('#walkthrough [role=tablist]')).toHaveCount(0);
-  await expect(page.locator('#walkthrough img')).toHaveCount(1);
+  await expect(page.locator('#walkthrough iframe')).toHaveCount(1);
+  await expect(page.locator('#walkthrough iframe')).toHaveAttribute('src', '/demo/?lang=en&embed=1');
   await expect(page.locator('.desktop-navigation').getByRole('link', { name: 'Skills', exact: true })).toHaveAttribute('href', '/skills/');
   await expect(page.locator('#quick-cli')).toBeVisible();
   await expect(page.locator('#quick-cli').locator('xpath=ancestor::details')).toHaveCount(0);

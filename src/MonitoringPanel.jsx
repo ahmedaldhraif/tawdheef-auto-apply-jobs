@@ -6,11 +6,11 @@ import './monitoring-panel.css';
 const CHANNELS = [['jobs', 'Matching jobs'], ['profiles', 'Career profiles'], ['email', 'Application emails'], ['calendar', 'Calendar']];
 const timeLabel = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString() : null;
 
-export function MonitoringSummary({ config, status, error, open, t = value => value }) {
+export function MonitoringSummary({ disabled = false, config, status, error, open, t = value => value }) {
   const owner = config?.assistant === 'claude-code' ? 'Claude Code' : 'Codex';
   const checked = timeLabel(status?.lastCheckAt);
   return <div className="monitor-summary">
-    <button type="button" onClick={open}>{t('Monitoring')}</button>
+    <button type="button" disabled={disabled} onClick={open}>{t('Monitoring')}</button>
     <span>{error ? t('Monitoring unavailable') : !config ? t('Loading…') : !config.enabled ? t('Monitoring off') : checked ? `${t('Last check')}: ${checked}` : t('Awaiting first check')}</span>
     {config?.enabled && <span className="field-hint">{owner}</span>}
     {status?.needsYouCount > 0 && <span>{t('Needs you')}: {status.needsYouCount}</span>}
