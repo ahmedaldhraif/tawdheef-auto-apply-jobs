@@ -26,7 +26,7 @@ export function createDemoStore({ language = 'en', clock = Date.now } = {}) {
           sourceRole: tr('Sample company', 'شركة تجريبية'), companyType: 'private', location: tr(city, cityAr),
           sector: tr('Technology & design', 'التقنية والتصميم'), status: [0, 3].includes(index) ? 'applied' : index === 1 ? 'ready' : 'not_started',
           progress: profile ? { account_created: 1, profile_created: 1, cv_uploaded: 1 } : {}, revision: 1,
-          profileSupport: 'supported', careersPageStatus: 'available', notes: tr('Fictional company for this demo.', 'شركة افتراضية لهذه التجربة.'),
+          profileSupport: 'available', careersPageStatus: 'available', notes: tr('Fictional company for this demo.', 'شركة افتراضية لهذه التجربة.'),
           nextAction: index === 2 ? tr('Awaiting reply', 'بانتظار الرد') : profile ? tr('Watch for new jobs', 'متابعة الوظائف الجديدة') : tr('Review matching jobs', 'مراجعة الوظائف المناسبة'),
           lastUpdate: index < 4 ? AT : null, website: '', careersUrl: '', email: '', linkedinUrl: '',
         });
@@ -56,7 +56,7 @@ export function createDemoStore({ language = 'en', clock = Date.now } = {}) {
       const at = new Date(clock()).toISOString();
       const add = (metric, role) => { if (!records.some(r => r.companyId === c.id && r.metric === metric)) records.push({ id: `${run.id}-${c.id}-${metric}`, companyId: c.id, companyName: c.name, directoryId: c.directoryId, at, role, metric, demo: true, ...(metric === 'emails' ? { recipient: 'careers@sample.example' } : {}) }); };
       // Alternate a matching job and a profile-only company; outcomes stay distinct.
-      const matched = i % 2 === 0;
+      const matched = /sample-(4|6)$/.test(c.id);
       if (run.actions.applyMatchingJobs && matched) { add('applications', tr('Product designer', 'مصمم منتجات')); c.status = 'applied'; }
       if (run.actions.createProfiles) { add('profiles', tr('Career profile', 'ملف مهني')); c.progress = { account_created: 1, profile_created: 1, cv_uploaded: 1 }; }
       if (run.actions.sendCvEmails && (!run.actions.applyMatchingJobs || !matched)) add('emails', tr('CV for future opportunities', 'سيرة ذاتية للفرص المستقبلية'));
@@ -125,7 +125,6 @@ export function createDemoStore({ language = 'en', clock = Date.now } = {}) {
       const scope = method === 'GET' ? JSON.parse(params.scope) : body;
       value = { count: selected(scope, true).length, listScopeVersion: 1, runActionsVersion: 1 };
     }
-    else if (route === '/native/readiness') value = { assistant: body.assistant || params.assistant || 'codex', ready: true, status: 'ready', checks: [], clientReported: true, independentlyVerified: false, actions: body.actions, demo: true };
     else if (route === '/native/runs' && method === 'POST') {
       if (runs.some(r => r.status === 'running')) throw new Error(tr('A demo run is already working.', 'هناك تشغيل تجريبي قيد العمل.'));
       if (!body.actions || !Object.values(body.actions).some(v => v === true)) throw new Error('Choose a demo action.');

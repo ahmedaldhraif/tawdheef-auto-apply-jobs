@@ -1556,7 +1556,7 @@ export function App({ demo = false, storage = localStorage } = {}) {
           key={detail.company.id}
           pending={busy === 'undo'}
           detail={detail}
-          discovery={{ directoryId: active, directoryName: directory?.name, revision: rowsRevision, assistant: boot.settings.preferredAssistant, enabled: true }}
+          discovery={{ demo, directoryId: active, directoryName: directory?.name, revision: rowsRevision, assistant: boot.settings.preferredAssistant, enabled: true }}
           t={t}
           close={() => {
             detailRequest.current++;

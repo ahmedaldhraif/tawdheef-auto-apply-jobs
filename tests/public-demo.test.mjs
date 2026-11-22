@@ -55,7 +55,7 @@ test('profile-only and CV-email-only demos do not manufacture applications', asy
 });
 test('unsupported operations fail closed and responses cannot mutate internal records', async () => {
   const store = createDemoStore();
-  for (const path of ['/email/send', '/import/preview', '/native/connection-request', '//localhost:4000/api', 'https://example.com']) await assert.rejects(store.request(path, 'POST', {}));
+  for (const path of ['/email/send', '/import/preview', '/native/connection-request', '/native/readiness', '//localhost:4000/api', 'https://example.com']) await assert.rejects(store.request(path, 'POST', {}));
   const boot = await store.request('/bootstrap');
   boot.directories[0].name = 'Changed outside';
   assert.equal((await store.request('/bootstrap')).directories[0].name, 'UAE');
@@ -76,4 +76,15 @@ test('both locales share the native entry point and correctly scoped, labelled e
     assert.match(html, /sandbox="allow-scripts allow-same-origin"/);
     assert.doesNotMatch(html, /native-desktop-light\.jpg/);
   }
+});
+
+test('filtering to a profile-only sample company cannot invent a matching vacancy', async () => {
+  let now = clockStart;
+  const store = createDemoStore({ clock: () => now });
+  const jobs = await store.request('/discovery/jobs?directoryId=uae&companyIds=["uae-sample-5"]');
+  assert.equal(jobs.total, 0);
+  const { run } = await store.request('/native/runs', 'POST', { directoryId: 'uae', companyIds: ['uae-sample-5'], actions });
+  now += 5000;
+  await store.request(`/runs/${run.id}`);
+  assert.deepEqual((await store.request('/snapshot?directoryId=uae')).counts, { applications: 2, profiles: 4, emails: 2 });
 });
