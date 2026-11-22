@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "installCommand": "npm ci --ignore-scripts --omit=optional --no-audit --no-fund",
+  "installCommand": "npm ci --ignore-scripts --include=dev --include=optional --no-audit --no-fund",
   "buildCommand": "node scripts/marketing/build-directory-pack.mjs && node website/build.mjs && node scripts/marketing/check-seo.mjs",
   "outputDirectory": "site-dist",
   "trailingSlash": true,

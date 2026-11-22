@@ -16,7 +16,7 @@ The demo supports searching, country tabs, list filters, sample history, outcome
 
 ## Build and review
 
-`node website/build.mjs` builds the native demo into `site-dist/demo/` and the generated local preview under `public/demo/`. Generated demo bundles stay out of Git. `npm run build` still builds only the native tracker.
+`node website/build.mjs` builds the native demo into `site-dist/demo/` and the generated local preview under `public/demo/`. Vercel installs development and optional build dependencies explicitly because Vite needs its platform-specific compiler bindings. Install lifecycle scripts stay disabled. Generated demo bundles stay out of Git. `npm run build` still builds only the native tracker.
 
 Run `node --test tests/public-demo.test.mjs tests/website-deployment.test.mjs` for data isolation, selected actions, stop/reset, separate outcomes and deployment parity. After building the website, run `npm run test:ui -- tests/public-demo-ui.spec.mjs` for English/Arabic, phone/desktop and both website color preferences. Browser tests reject external requests and `/api/` requests and check that the native browser preferences are untouched.
 
