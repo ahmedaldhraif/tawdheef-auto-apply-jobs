@@ -4,6 +4,24 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaultDataDir } from '../scripts/app-paths.mjs';
 export const INTEGRATIONS_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+export const TABBIO_MCP_URL = 'https://server.tabbio.com/api/mcp';
+/**
+ * The Tabbio MCP endpoint written into client settings. The published one by
+ * default; TAWDHEEF_TABBIO_MCP_URL points a developer's setup at another
+ * Tabbio environment (for example its staging server). Only an https URL, or
+ * http on this computer, whose path is a Tabbio MCP path.
+ */
+export function tabbioMcpUrl(env = process.env) {
+  const raw = env.TAWDHEEF_TABBIO_MCP_URL?.trim();
+  if (!raw) return TABBIO_MCP_URL;
+  let url;
+  try { url = new URL(raw); } catch { throw new Error('TAWDHEEF_TABBIO_MCP_URL must be a full URL, for example https://server.tabbio.com/api/mcp.'); }
+  const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname);
+  if (!(url.protocol === 'https:' || (url.protocol === 'http:' && loopback))) throw new Error('TAWDHEEF_TABBIO_MCP_URL must use https (http only on this computer).');
+  if (url.username || url.password || url.search || url.hash) throw new Error('TAWDHEEF_TABBIO_MCP_URL must not contain credentials, a query or a fragment.');
+  if (!/^\/api\/mcp(\/start)?$/.test(url.pathname.replace(/\/$/, ''))) throw new Error('TAWDHEEF_TABBIO_MCP_URL must end in /api/mcp or /api/mcp/start.');
+  return `${url.origin}${url.pathname.replace(/\/$/, '')}`;
+}
 function locations(options = {}) {
   const root = resolve(options.root || INTEGRATIONS_ROOT);
   const dataDir = resolve(options.dataDir || defaultDataDir(root));
@@ -49,7 +67,7 @@ export async function createClientConfig(options = {}) {
   const mcpServers = {
     'apply-tracker': { command: process.execPath, args: [join(root, 'server', 'mcp.mjs')], env: { APPLY_TRACKER_DATA: dataDir, APPLY_TRACKER_PORT: String(port), APPLY_TRACKER_CONNECTION_MODE: mode, APPLY_TRACKER_CLIENT: assistant } },
   };
-  for (const id of new Set(include)) mcpServers[id] = { url: 'https://server.tabbio.com/api/mcp' };
+  for (const id of new Set(include)) mcpServers[id] = { url: tabbioMcpUrl() };
   if (options.monitor) mcpServers['apply-tracker'].env.APPLY_TRACKER_MONITOR = '1';
   if (options.monitor && options.monitorAssistant) mcpServers['apply-tracker'].env.APPLY_TRACKER_MONITOR_ASSISTANT = options.monitorAssistant;
   const forClient = client => Object.fromEntries(Object.entries(mcpServers).map(([name, server]) => [name, server.env ? { ...server, env: { ...server.env, APPLY_TRACKER_CLIENT: client, ...(options.monitor ? { APPLY_TRACKER_MONITOR_ASSISTANT: client } : {}) } } : { ...server }]));

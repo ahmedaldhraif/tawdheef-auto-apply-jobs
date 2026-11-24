@@ -24,3 +24,21 @@ test('readiness ignores and preserves historical private provider credentials',a
   assert.equal(status.mode,'native'); assert.equal(status.app.running,true); assert.equal(status.app.sameDataDirectory,false); assert.deepEqual(status.integrations,[]); assert.equal(status.accountConnected,false);
   assert.ok(!JSON.stringify(status).includes('fixture-secret')); assert.equal(await readFile(path,'utf8'),privateBytes);
 });
+test('the Tabbio MCP URL defaults to the published endpoint and can point a developer setup at another environment', async t => {
+  const { tabbioMcpUrl, TABBIO_MCP_URL } = await import('../server/integrations.mjs');
+  assert.equal(tabbioMcpUrl({}), TABBIO_MCP_URL);
+  assert.equal(tabbioMcpUrl({ TAWDHEEF_TABBIO_MCP_URL: ' ' }), 'https://server.tabbio.com/api/mcp');
+  assert.equal(tabbioMcpUrl({ TAWDHEEF_TABBIO_MCP_URL: 'https://api.tabbio.dev/api/mcp/' }), 'https://api.tabbio.dev/api/mcp');
+  assert.equal(tabbioMcpUrl({ TAWDHEEF_TABBIO_MCP_URL: 'https://api.tabbio.dev/api/mcp/start' }), 'https://api.tabbio.dev/api/mcp/start');
+  assert.equal(tabbioMcpUrl({ TAWDHEEF_TABBIO_MCP_URL: 'http://127.0.0.1:3001/api/mcp' }), 'http://127.0.0.1:3001/api/mcp');
+  for (const bad of ['http://evil.example/api/mcp', 'https://api.tabbio.dev/other', 'https://u:p@api.tabbio.dev/api/mcp', 'https://api.tabbio.dev/api/mcp?x=1', 'not a url']) {
+    assert.throws(() => tabbioMcpUrl({ TAWDHEEF_TABBIO_MCP_URL: bad }), /TAWDHEEF_TABBIO_MCP_URL/, bad);
+  }
+  const previous = process.env.TAWDHEEF_TABBIO_MCP_URL;
+  process.env.TAWDHEEF_TABBIO_MCP_URL = 'https://api.tabbio.dev/api/mcp';
+  t.after(() => { if (previous === undefined) delete process.env.TAWDHEEF_TABBIO_MCP_URL; else process.env.TAWDHEEF_TABBIO_MCP_URL = previous; });
+  const options = await fixture(t);
+  const config = await createClientConfig({ ...options, include: ['tabbio'], assistant: 'claude-code' });
+  assert.deepEqual(config.mcpServers.tabbio, { type: 'http', url: 'https://api.tabbio.dev/api/mcp' });
+  assert.match(config.codexToml, /url = "https:\/\/api\.tabbio\.dev\/api\/mcp"/);
+});
