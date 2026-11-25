@@ -22,6 +22,37 @@ export function tabbioMcpUrl(env = process.env) {
   if (!/^\/api\/mcp(\/start)?$/.test(url.pathname.replace(/\/$/, ''))) throw new Error('TAWDHEEF_TABBIO_MCP_URL must end in /api/mcp or /api/mcp/start.');
   return `${url.origin}${url.pathname.replace(/\/$/, '')}`;
 }
+
+/** Tabbio's in-chat sign-up and sign-in door (off until Tabbio turns it on). */
+export const TABBIO_SIGNUP_MCP_URL = 'https://server.tabbio.com/api/mcp/start';
+const TERMS_URL = 'https://tabbio.com/en/terms-of-service';
+const PRIVACY_URL = 'https://tabbio.com/en/privacy-policy';
+export const TABBIO_TERMS_LINE = `Using Tabbio through Tawdheef means you accept Tabbio's Terms of Service (${TERMS_URL}) and Privacy Policy (${PRIVACY_URL}).`;
+
+/**
+ * The Tabbio MCP URL setup writes. A developer override wins. Otherwise, when
+ * asked to probe, one anonymous request checks whether Tabbio's sign-up door
+ * answers: if it does, the door is written, so someone with no Tabbio token
+ * can create an account or sign in from inside the chat with an emailed code;
+ * if not (or offline), the published endpoint with the client's own browser
+ * sign-in, exactly as before. Nothing about the person is sent.
+ */
+export async function resolveTabbioMcpUrl({ env = process.env, probe = false, fetch: fetchImpl = globalThis.fetch, timeoutMs = 2500 } = {}) {
+  if (env.TAWDHEEF_TABBIO_MCP_URL?.trim()) return tabbioMcpUrl(env);
+  if (!probe || typeof fetchImpl !== 'function') return TABBIO_MCP_URL;
+  try {
+    const response = await fetchImpl(TABBIO_SIGNUP_MCP_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'tawdheef-setup', version: '1' } } }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    await response.body?.cancel?.().catch(() => {});
+    return response.ok ? TABBIO_SIGNUP_MCP_URL : TABBIO_MCP_URL;
+  } catch {
+    return TABBIO_MCP_URL;
+  }
+}
 function locations(options = {}) {
   const root = resolve(options.root || INTEGRATIONS_ROOT);
   const dataDir = resolve(options.dataDir || defaultDataDir(root));
@@ -67,7 +98,8 @@ export async function createClientConfig(options = {}) {
   const mcpServers = {
     'apply-tracker': { command: process.execPath, args: [join(root, 'server', 'mcp.mjs')], env: { APPLY_TRACKER_DATA: dataDir, APPLY_TRACKER_PORT: String(port), APPLY_TRACKER_CONNECTION_MODE: mode, APPLY_TRACKER_CLIENT: assistant } },
   };
-  for (const id of new Set(include)) mcpServers[id] = { url: tabbioMcpUrl() };
+  const tabbioUrl = options.tabbioMcpUrl ? tabbioMcpUrl({ TAWDHEEF_TABBIO_MCP_URL: options.tabbioMcpUrl }) : tabbioMcpUrl();
+  for (const id of new Set(include)) mcpServers[id] = { url: tabbioUrl };
   if (options.monitor) mcpServers['apply-tracker'].env.APPLY_TRACKER_MONITOR = '1';
   if (options.monitor && options.monitorAssistant) mcpServers['apply-tracker'].env.APPLY_TRACKER_MONITOR_ASSISTANT = options.monitorAssistant;
   const forClient = client => Object.fromEntries(Object.entries(mcpServers).map(([name, server]) => [name, server.env ? { ...server, env: { ...server.env, APPLY_TRACKER_CLIENT: client, ...(options.monitor ? { APPLY_TRACKER_MONITOR_ASSISTANT: client } : {}) } } : { ...server }]));

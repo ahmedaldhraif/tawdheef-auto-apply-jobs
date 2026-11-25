@@ -42,3 +42,27 @@ test('the Tabbio MCP URL defaults to the published endpoint and can point a deve
   assert.deepEqual(config.mcpServers.tabbio, { type: 'http', url: 'https://api.tabbio.dev/api/mcp' });
   assert.match(config.codexToml, /url = "https:\/\/api\.tabbio\.dev\/api\/mcp"/);
 });
+test('setup writes Tabbio\'s in-chat sign-up door only when it answers, and the published endpoint otherwise', async () => {
+  const { resolveTabbioMcpUrl, TABBIO_MCP_URL, TABBIO_SIGNUP_MCP_URL, TABBIO_TERMS_LINE } = await import('../server/integrations.mjs');
+  const answering = async url => { assert.equal(url, TABBIO_SIGNUP_MCP_URL); return new Response('{}', { status: 200 }); };
+  const off = async () => new Response('{"error":"not_found"}', { status: 404 });
+  const offline = async () => { throw new Error('offline'); };
+  let called = false;
+  const spy = async () => { called = true; return new Response('{}', { status: 200 }); };
+  assert.equal(await resolveTabbioMcpUrl({ env: {}, probe: true, fetch: answering }), TABBIO_SIGNUP_MCP_URL);
+  assert.equal(await resolveTabbioMcpUrl({ env: {}, probe: true, fetch: off }), TABBIO_MCP_URL);
+  assert.equal(await resolveTabbioMcpUrl({ env: {}, probe: true, fetch: offline }), TABBIO_MCP_URL);
+  // No probe asked for (every caller but the setup command): no request at all.
+  assert.equal(await resolveTabbioMcpUrl({ env: {}, fetch: spy }), TABBIO_MCP_URL);
+  assert.equal(called, false);
+  // A developer override wins over the probe.
+  assert.equal(await resolveTabbioMcpUrl({ env: { TAWDHEEF_TABBIO_MCP_URL: 'https://api.tabbio.dev/api/mcp/start' }, probe: true, fetch: off }), 'https://api.tabbio.dev/api/mcp/start');
+  assert.match(TABBIO_TERMS_LINE, /Terms of Service \(https:\/\/tabbio\.com\/en\/terms-of-service\) and Privacy Policy \(https:\/\/tabbio\.com\/en\/privacy-policy\)/);
+});
+
+test('client config uses the Tabbio URL setup resolved', async t => {
+  const options = await fixture(t);
+  const config = await createClientConfig({ ...options, include: ['tabbio'], assistant: 'claude-code', tabbioMcpUrl: 'https://server.tabbio.com/api/mcp/start' });
+  assert.deepEqual(config.mcpServers.tabbio, { type: 'http', url: 'https://server.tabbio.com/api/mcp/start' });
+  await assert.rejects(createClientConfig({ ...options, include: ['tabbio'], tabbioMcpUrl: 'http://evil.example/api/mcp' }), /TAWDHEEF_TABBIO_MCP_URL/);
+});

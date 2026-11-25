@@ -23,6 +23,7 @@ test('native configuration binds each actual client and adds direct Tabbio only 
 test('both native clients and both monitoring configurations keep distinct bound identities without claiming sign-in', async t => {
   const options = await fixture(t); await mkdir(join(options.root, '.codex')); await writeFile(join(options.root, '.codex/config.toml'), 'model = "custom-model"\n'); await writeFile(join(options.root, '.mcp.json'), JSON.stringify({ custom: true, mcpServers: { unrelated: { command: 'preserve' } } }));
   const result = await configureAgent('both', { ...options, include: ['tabbio'] }); assert.equal(result.accountConnected, false); assert.equal(result.mode, 'native');
+  assert.equal(result.tabbio.inChatSignup, false); assert.match(result.tabbio.terms, /Terms of Service .* Privacy Policy/);
   const normal = JSON.parse(await readFile(join(options.root, '.mcp.json'), 'utf8')); assert.equal(normal.custom, true); assert.equal(normal.mcpServers.unrelated.command, 'preserve'); assert.equal(normal.mcpServers['apply-tracker'].env.APPLY_TRACKER_CLIENT, 'claude-code');
   assert.match(await readFile(join(options.root, '.codex/config.toml'), 'utf8'), /^model = "custom-model"/);
   const monitor = await configureAgent('both', { ...options, monitor: true }), json = JSON.parse(await readFile(join(monitor.workspace, '.mcp.json'), 'utf8')), toml = await readFile(join(monitor.workspace, '.codex/config.toml'), 'utf8');
