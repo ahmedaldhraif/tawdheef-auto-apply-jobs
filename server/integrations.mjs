@@ -21,13 +21,29 @@ export function tabbioMcpUrl(env = process.env) {
   // A Tabbio host (production or staging) or this computer: the agent is told to sign in there.
   const tabbioHost = /^([a-z0-9-]+\.)*tabbio\.(com|dev)$/.test(url.hostname);
   if (!tabbioHost && !loopback) throw new Error('TAWDHEEF_TABBIO_MCP_URL must be a Tabbio host (tabbio.com or tabbio.dev) or this computer.');
-  if (url.username || url.password || url.search || url.hash) throw new Error('TAWDHEEF_TABBIO_MCP_URL must not contain credentials, a query or a fragment.');
+  // The only query allowed is Tawdheef's own marker on the sign-up door (setup adds it).
+  const marker = url.search === '?client=tawdheef' && url.pathname.replace(/\/$/, '').endsWith('/api/mcp/start');
+  if (url.username || url.password || (url.search && !marker) || url.hash) throw new Error('TAWDHEEF_TABBIO_MCP_URL must not contain credentials, a query or a fragment.');
   if (!/^\/api\/mcp(\/start)?$/.test(url.pathname.replace(/\/$/, ''))) throw new Error('TAWDHEEF_TABBIO_MCP_URL must end in /api/mcp or /api/mcp/start.');
-  return `${url.origin}${url.pathname.replace(/\/$/, '')}`;
+  return withTawdheefMarker(`${url.origin}${url.pathname.replace(/\/$/, '')}`);
+}
+
+/**
+ * The door is told the setup came from Tawdheef (`?client=tawdheef`), so the
+ * key it makes is named "Tawdheef" in the person's Tabbio settings whichever
+ * client runs it (one place, one name). The published /api/mcp is unchanged.
+ */
+function withTawdheefMarker(url) {
+  return url.endsWith('/api/mcp/start') ? `${url}?client=tawdheef` : url;
+}
+
+/** True for Tabbio's in-chat sign-up door, with or without its marker. */
+export function isTabbioSignupUrl(url) {
+  try { return new URL(url).pathname.replace(/\/$/, '').endsWith('/api/mcp/start'); } catch { return false; }
 }
 
 /** Tabbio's in-chat sign-up and sign-in door (off until Tabbio turns it on). */
-export const TABBIO_SIGNUP_MCP_URL = 'https://server.tabbio.com/api/mcp/start';
+export const TABBIO_SIGNUP_MCP_URL = 'https://server.tabbio.com/api/mcp/start?client=tawdheef';
 const TERMS_URL = 'https://tabbio.com/en/terms-of-service';
 const PRIVACY_URL = 'https://tabbio.com/en/privacy-policy';
 export const TABBIO_TERMS_LINE = `Using Tabbio through Tawdheef means you accept Tabbio's Terms of Service (${TERMS_URL}) and Privacy Policy (${PRIVACY_URL}).`;

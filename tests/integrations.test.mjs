@@ -29,9 +29,11 @@ test('the Tabbio MCP URL defaults to the published endpoint and can point a deve
   assert.equal(tabbioMcpUrl({}), TABBIO_MCP_URL);
   assert.equal(tabbioMcpUrl({ TAWDHEEF_TABBIO_MCP_URL: ' ' }), 'https://server.tabbio.com/api/mcp');
   assert.equal(tabbioMcpUrl({ TAWDHEEF_TABBIO_MCP_URL: 'https://api.tabbio.dev/api/mcp/' }), 'https://api.tabbio.dev/api/mcp');
-  assert.equal(tabbioMcpUrl({ TAWDHEEF_TABBIO_MCP_URL: 'https://api.tabbio.dev/api/mcp/start' }), 'https://api.tabbio.dev/api/mcp/start');
+  // The sign-up door carries Tawdheef's marker, so Tabbio names the key "Tawdheef".
+  assert.equal(tabbioMcpUrl({ TAWDHEEF_TABBIO_MCP_URL: 'https://api.tabbio.dev/api/mcp/start' }), 'https://api.tabbio.dev/api/mcp/start?client=tawdheef');
+  assert.equal(tabbioMcpUrl({ TAWDHEEF_TABBIO_MCP_URL: 'https://api.tabbio.dev/api/mcp/start?client=tawdheef' }), 'https://api.tabbio.dev/api/mcp/start?client=tawdheef');
   assert.equal(tabbioMcpUrl({ TAWDHEEF_TABBIO_MCP_URL: 'http://127.0.0.1:3001/api/mcp' }), 'http://127.0.0.1:3001/api/mcp');
-  for (const bad of ['http://evil.example/api/mcp', 'https://evil.example/api/mcp', 'https://tabbio.com.evil.example/api/mcp', 'https://api.tabbio.dev/other', 'https://u:p@api.tabbio.dev/api/mcp', 'https://api.tabbio.dev/api/mcp?x=1', 'not a url']) {
+  for (const bad of ['http://evil.example/api/mcp', 'https://evil.example/api/mcp', 'https://tabbio.com.evil.example/api/mcp', 'https://api.tabbio.dev/other', 'https://u:p@api.tabbio.dev/api/mcp', 'https://api.tabbio.dev/api/mcp?x=1', 'https://api.tabbio.dev/api/mcp?client=tawdheef', 'https://api.tabbio.dev/api/mcp/start?client=other', 'not a url']) {
     assert.throws(() => tabbioMcpUrl({ TAWDHEEF_TABBIO_MCP_URL: bad }), /TAWDHEEF_TABBIO_MCP_URL/, bad);
   }
   const previous = process.env.TAWDHEEF_TABBIO_MCP_URL;
@@ -62,13 +64,14 @@ test('setup writes Tabbio\'s in-chat sign-up door only when it answers, and the 
   assert.equal(await resolveTabbioMcpUrl({ env: {}, fetch: spy }), TABBIO_MCP_URL);
   assert.equal(called, false);
   // A developer override wins over the probe.
-  assert.equal(await resolveTabbioMcpUrl({ env: { TAWDHEEF_TABBIO_MCP_URL: 'https://api.tabbio.dev/api/mcp/start' }, probe: true, fetch: off }), 'https://api.tabbio.dev/api/mcp/start');
+  assert.equal(await resolveTabbioMcpUrl({ env: { TAWDHEEF_TABBIO_MCP_URL: 'https://api.tabbio.dev/api/mcp/start' }, probe: true, fetch: off }), 'https://api.tabbio.dev/api/mcp/start?client=tawdheef');
   assert.match(TABBIO_TERMS_LINE, /Terms of Service \(https:\/\/tabbio\.com\/en\/terms-of-service\) and Privacy Policy \(https:\/\/tabbio\.com\/en\/privacy-policy\)/);
 });
 
 test('client config uses the Tabbio URL setup resolved', async t => {
   const options = await fixture(t);
-  const config = await createClientConfig({ ...options, include: ['tabbio'], assistant: 'claude-code', tabbioMcpUrl: 'https://server.tabbio.com/api/mcp/start' });
-  assert.deepEqual(config.mcpServers.tabbio, { type: 'http', url: 'https://server.tabbio.com/api/mcp/start' });
+  const config = await createClientConfig({ ...options, include: ['tabbio'], assistant: 'claude-code', tabbioMcpUrl: 'https://server.tabbio.com/api/mcp/start?client=tawdheef' });
+  assert.deepEqual(config.mcpServers.tabbio, { type: 'http', url: 'https://server.tabbio.com/api/mcp/start?client=tawdheef' });
+  assert.match(config.codexToml, /url = "https:\/\/server\.tabbio\.com\/api\/mcp\/start\?client=tawdheef"/);
   await assert.rejects(createClientConfig({ ...options, include: ['tabbio'], tabbioMcpUrl: 'http://evil.example/api/mcp' }), /TAWDHEEF_TABBIO_MCP_URL/);
 });

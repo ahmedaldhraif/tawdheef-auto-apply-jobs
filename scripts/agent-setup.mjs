@@ -2,7 +2,7 @@
 import { readFile, readdir, realpath, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createClientConfig, INTEGRATIONS_ROOT, resolveTabbioMcpUrl, TABBIO_TERMS_LINE } from '../server/integrations.mjs';
+import { createClientConfig, INTEGRATIONS_ROOT, isTabbioSignupUrl, resolveTabbioMcpUrl, TABBIO_TERMS_LINE } from '../server/integrations.mjs';
 import { readSetupManifest, planAgentSetup, applyAgentSetup } from './agent-config-merge.mjs';
 import { appPaths } from './app-paths.mjs';
 import { forwardInstalledApp } from './installed-app.mjs';
@@ -48,7 +48,7 @@ export async function configureAgent(client, options = {}) {
   // A project already on the published endpoint keeps it (someone signed in there stays signed in);
   // only a first setup, or a project on the sign-up door, asks again (a door switched off falls back).
   const previousTabbio = include.includes('tabbio') ? await previousTabbioUrl(workspace) : null;
-  const keepPrevious = previousTabbio && !previousTabbio.endsWith('/api/mcp/start') && !(options.env || process.env).TAWDHEEF_TABBIO_MCP_URL;
+  const keepPrevious = previousTabbio && !isTabbioSignupUrl(previousTabbio) && !(options.env || process.env).TAWDHEEF_TABBIO_MCP_URL;
   const tabbioMcpUrl = include.includes('tabbio')
     ? options.tabbioMcpUrl || (keepPrevious ? previousTabbio : await resolveTabbioMcpUrl({ env: options.env || process.env, probe: options.probeTabbio === true, ...(options.fetch ? { fetch: options.fetch } : {}) }))
     : undefined;
@@ -81,7 +81,7 @@ export async function configureAgent(client, options = {}) {
     clients, files: plan.files.map(item => ({ path: item.path, status: item.previous === item.content ? 'already configured' : item.previous === null ? options.check ? 'would create' : 'created' : options.check ? 'would update' : 'updated' })),
     ...(result.backup ? { backup: result.backup } : {}),
     included: config.included,
-    ...(tabbioMcpUrl ? { tabbio: { url: tabbioMcpUrl, inChatSignup: tabbioMcpUrl.endsWith('/api/mcp/start'), terms: TABBIO_TERMS_LINE } } : {}),
+    ...(tabbioMcpUrl ? { tabbio: { url: tabbioMcpUrl, inChatSignup: isTabbioSignupUrl(tabbioMcpUrl), terms: TABBIO_TERMS_LINE } } : {}),
     accountConnected: false,
     nextStep: options.monitor ? `Open ${JSON.stringify(workspace)} in the selected native client. Each client has its own bound monitoring identity. Use Copy schedule request to create one local native task. This setup command did not create a schedule.` : `Open ${JSON.stringify(workspace)} in the chosen client and accept its project/server trust prompt. Ask it to read AGENTS.md, get_agent_context, get_capabilities and get_native_readiness. Reuse working connections and the same browser/account; check the intended mailbox, readable CV, real upload file and supported browser access together. Report dated non-secret observations through report_native_connection, then guide only the missing step. Configuration alone is not connected. No applications, profiles, CV sharing or schedules during setup.`
   };

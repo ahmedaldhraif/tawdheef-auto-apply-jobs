@@ -63,7 +63,7 @@ test('re-running setup keeps a project already on the published Tabbio endpoint,
   const env = { ...process.env }; delete env.TAWDHEEF_TABBIO_MCP_URL;
   // A first setup while the door answers: the door.
   await configureAgent('claude-code', { ...options, env, include: ['tabbio'], probeTabbio: true, fetch: doorOn });
-  assert.equal(await read(), 'https://server.tabbio.com/api/mcp/start');
+  assert.equal(await read(), 'https://server.tabbio.com/api/mcp/start?client=tawdheef');
   // The door switched off: re-running falls back to the published endpoint.
   await configureAgent('claude-code', { ...options, env, include: ['tabbio'], probeTabbio: true, fetch: doorOff });
   assert.equal(await read(), 'https://server.tabbio.com/api/mcp');
