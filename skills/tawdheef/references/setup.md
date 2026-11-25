@@ -34,6 +34,13 @@ the app. Read the intended checkout's AGENTS.md and docs/FIRST-RUN.md.
    the project setup --tabbio option is available when explicitly requested.
    A supported signed-in Tabbio browser is also a valid authorized reading route;
    do not force a broken MCP route when this actual client can already read the CV.
+   If the Tabbio server offers `tabbio_signup_*` tools, the person is not
+   connected yet: follow those tools to sign them in, or create their free
+   account and CV, with a code sent to their email (no password, nothing to
+   paste). Show the terms notice those tools return before the account is made.
+   If the tabbio server fails to connect and its URL has `/api/mcp/start`,
+   Tabbio has switched that door off: re-run `npm run agent -- <client> --tabbio`
+   (it falls back to the published endpoint and its browser sign-in).
    Read the actual authorized CV through the native client. Report only CV
    reference/update metadata, never full CV text. No invented experience,
    visibility change, sharing, publishing or editing to make setup pass.

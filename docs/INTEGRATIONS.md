@@ -24,6 +24,8 @@ npm run agent -- codex --tabbio
 
 These commands create project-only settings and install the Tawdheef skill. Each client's tracker connection has its own bound identity. Unrelated settings are preserved; unchanged owned entries may be upgraded with private backups, while edited or ambiguous entries require review. Use `--check` to preview. The explicitly selected `--tabbio` adds `https://server.tabbio.com/api/mcp` directly to the actual client; it installs no Tabbio CLI and does not sign in or prove access. [Tabbio connection guide](https://www.tabbio.com/en/mcp).
 
+Developers testing against another Tabbio environment can set `TAWDHEEF_TABBIO_MCP_URL` (an https URL ending in `/api/mcp`, or http on this computer) before running setup; the published endpoint `https://server.tabbio.com/api/mcp` is the default.
+
 For reviewable configuration files without changing an installed client's settings:
 
 ```sh

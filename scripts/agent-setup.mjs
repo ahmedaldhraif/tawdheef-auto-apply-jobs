@@ -2,7 +2,7 @@
 import { readFile, readdir, realpath, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createClientConfig, INTEGRATIONS_ROOT } from '../server/integrations.mjs';
+import { createClientConfig, INTEGRATIONS_ROOT, isTabbioSignupUrl, resolveTabbioMcpUrl, TABBIO_TERMS_LINE } from '../server/integrations.mjs';
 import { readSetupManifest, planAgentSetup, applyAgentSetup } from './agent-config-merge.mjs';
 import { appPaths } from './app-paths.mjs';
 import { forwardInstalledApp } from './installed-app.mjs';
@@ -13,6 +13,20 @@ async function existingSourceWorkspace(workspace) {
     if (pkg.name !== 'apply-tracker') return false;
     return (await Promise.all(['server/store.mjs', 'src/main.jsx', 'AGENTS.md'].map(file => stat(join(workspace, file))))).every(info => info.isFile());
   } catch { return false; }
+}
+
+/** The Tabbio URL this project's settings already hold, if any (Claude Code JSON or Codex TOML). */
+async function previousTabbioUrl(workspace) {
+  try {
+    const json = JSON.parse(await readFile(join(workspace, '.mcp.json'), 'utf8'));
+    if (typeof json?.mcpServers?.tabbio?.url === 'string') return json.mcpServers.tabbio.url;
+  } catch {}
+  try {
+    const toml = await readFile(join(workspace, '.codex/config.toml'), 'utf8');
+    const match = toml.match(/\[mcp_servers\.tabbio\][^[]*?\burl\s*=\s*"([^"]+)"/);
+    if (match) return match[1];
+  } catch {}
+  return null;
 }
 
 export async function configureAgent(client, options = {}) {
@@ -30,7 +44,15 @@ export async function configureAgent(client, options = {}) {
   const mode = 'native';
   const previousIncludes = clients.flatMap(selected => manifest.clients[selected]?.included || []).filter(name => name === 'tabbio');
   const include = options.monitor ? [] : [...new Set([...(options.include || []), ...previousIncludes])];
-  const clientConfigs = Object.fromEntries(await Promise.all(clients.map(async selected => [selected, await createClientConfig({ ...options, root, dataDir: paths.dataDir, include, mode, assistant: selected, ...(options.monitor ? { monitorAssistant: selected } : {}) })])));
+  // Only the command line probes (one anonymous request); tests and callers pass a URL or get the published one.
+  // A project already on the published endpoint keeps it (someone signed in there stays signed in);
+  // only a first setup, or a project on the sign-up door, asks again (a door switched off falls back).
+  const previousTabbio = include.includes('tabbio') ? await previousTabbioUrl(workspace) : null;
+  const keepPrevious = previousTabbio && !isTabbioSignupUrl(previousTabbio) && !(options.env || process.env).TAWDHEEF_TABBIO_MCP_URL;
+  const tabbioMcpUrl = include.includes('tabbio')
+    ? options.tabbioMcpUrl || (keepPrevious ? previousTabbio : await resolveTabbioMcpUrl({ env: options.env || process.env, probe: options.probeTabbio === true, ...(options.fetch ? { fetch: options.fetch } : {}) }))
+    : undefined;
+  const clientConfigs = Object.fromEntries(await Promise.all(clients.map(async selected => [selected, await createClientConfig({ ...options, ...(tabbioMcpUrl ? { tabbioMcpUrl } : {}), root, dataDir: paths.dataDir, include, mode, assistant: selected, ...(options.monitor ? { monitorAssistant: selected } : {}) })])));
   const config = clientConfigs[clients[0]];
   const skills = [];
   async function addSkill(source, target) {
@@ -59,6 +81,7 @@ export async function configureAgent(client, options = {}) {
     clients, files: plan.files.map(item => ({ path: item.path, status: item.previous === item.content ? 'already configured' : item.previous === null ? options.check ? 'would create' : 'created' : options.check ? 'would update' : 'updated' })),
     ...(result.backup ? { backup: result.backup } : {}),
     included: config.included,
+    ...(tabbioMcpUrl ? { tabbio: { url: tabbioMcpUrl, inChatSignup: isTabbioSignupUrl(tabbioMcpUrl), terms: TABBIO_TERMS_LINE } } : {}),
     accountConnected: false,
     nextStep: options.monitor ? `Open ${JSON.stringify(workspace)} in the selected native client. Each client has its own bound monitoring identity. Use Copy schedule request to create one local native task. This setup command did not create a schedule.` : `Open ${JSON.stringify(workspace)} in the chosen client and accept its project/server trust prompt. Ask it to read AGENTS.md, get_agent_context, get_capabilities and get_native_readiness. Reuse working connections and the same browser/account; check the intended mailbox, readable CV, real upload file and supported browser access together. Report dated non-secret observations through report_native_connection, then guide only the missing step. Configuration alone is not connected. No applications, profiles, CV sharing or schedules during setup.`
   };
@@ -74,12 +97,18 @@ if (invokedScript === ownScript) {
   const [client, ...flags] = process.argv.slice(2);
   if (!client || client === '--help') console.log('Connect this project: npm run agent -- codex | claude-code | both\nNative client ownership is default. --tabbio explicitly adds direct remote Tabbio MCP to the actual client; sign-in remains client-owned. --monitor prepares per-client read-only workspaces, without creating a schedule. --check previews; --json prints machine output. Preserves unrelated settings and ownership backups. Never signs into accounts or changes global settings.');
   else if (flags.some(flag => !['--tabbio', '--monitor', '--check', '--json'].includes(flag))) { console.error('Only --tabbio, --monitor, --check and --json are supported. External connections belong to your actual client.'); process.exitCode = 1; }
-  else configureAgent(client, { monitor: flags.includes('--monitor'), check: flags.includes('--check'), include: [...(flags.includes('--tabbio') ? ['tabbio'] : [])] }).then(result => {
+  else configureAgent(client, { monitor: flags.includes('--monitor'), check: flags.includes('--check'), include: [...(flags.includes('--tabbio') ? ['tabbio'] : [])], probeTabbio: true }).then(result => {
     if (flags.includes('--json')) console.log(JSON.stringify(result, null, 2));
     else {
       console.log(flags.includes('--check') ? 'Setup preview. No files changed.' : `Tawdheef project setup is ready for ${result.clients.join(' and ')}.`);
       for (const file of result.files.filter(file => /config\.toml$|\.mcp\.json$/.test(file.path))) console.log(`${file.status}: ${file.path}`);
       console.log(result.nextStep);
+      if (result.tabbio) {
+        console.log(result.tabbio.inChatSignup
+          ? 'Tabbio: no account or token needed. In your assistant, say you want to use your Tabbio CV; it signs you in, or creates your free account and CV, with a code sent to your email.'
+          : 'Tabbio: your assistant asks you to sign in to Tabbio in the browser the first time.');
+        console.log(result.tabbio.terms);
+      }
     }
   }).catch(error => { console.error(error.message); process.exitCode = 1; });
 }

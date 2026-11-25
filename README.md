@@ -50,7 +50,7 @@ Created by [Ahmed AlDhraif](https://github.com/ahmedaldhraif). The app, communit
 
 1. Download the [current Native source](https://github.com/ahmedaldhraif/tawdheef-auto-apply-jobs/archive/refs/heads/main.zip), extract it and run `npm start` in its folder. The older v0.1.2 download uses a different setup.
 2. Use [Node.js 26 LTS](https://nodejs.org/en/download) for source. Open **Connections → Assistant**, choose your client, then paste **Copy setup request** into that Codex or Claude Code client.
-3. [Create a free Tabbio CV](https://app.tabbio.com/?utm_source=tawdheef&utm_medium=github&utm_campaign=live_cv), or connect the actual CV in your chosen client's supported tools. Connections shows dated client reports and setup requests; sign-in and credentials stay in that client.
+3. [Create a free Tabbio CV](https://app.tabbio.com/?utm_source=tawdheef&utm_medium=github&utm_campaign=live_cv), or connect the actual CV in your chosen client's supported tools. Connections shows dated client reports and setup requests; sign-in and credentials stay in that client. Using Tabbio through Tawdheef means you accept Tabbio's [Terms of Service](https://tabbio.com/en/terms-of-service) and [Privacy Policy](https://tabbio.com/en/privacy-policy).
 4. Filter/select companies, choose actions and press **Run**. Continue its handoff in your actual client. Matching jobs and profiles start selected; CV-only emails stay off unless selected. The client claims one company at a time and records real outcomes.
 
 Paste this into your assistant:

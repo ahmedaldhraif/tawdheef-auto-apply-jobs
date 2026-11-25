@@ -23,6 +23,7 @@ test('native configuration binds each actual client and adds direct Tabbio only 
 test('both native clients and both monitoring configurations keep distinct bound identities without claiming sign-in', async t => {
   const options = await fixture(t); await mkdir(join(options.root, '.codex')); await writeFile(join(options.root, '.codex/config.toml'), 'model = "custom-model"\n'); await writeFile(join(options.root, '.mcp.json'), JSON.stringify({ custom: true, mcpServers: { unrelated: { command: 'preserve' } } }));
   const result = await configureAgent('both', { ...options, include: ['tabbio'] }); assert.equal(result.accountConnected, false); assert.equal(result.mode, 'native');
+  assert.equal(result.tabbio.inChatSignup, false); assert.match(result.tabbio.terms, /Terms of Service .* Privacy Policy/);
   const normal = JSON.parse(await readFile(join(options.root, '.mcp.json'), 'utf8')); assert.equal(normal.custom, true); assert.equal(normal.mcpServers.unrelated.command, 'preserve'); assert.equal(normal.mcpServers['apply-tracker'].env.APPLY_TRACKER_CLIENT, 'claude-code');
   assert.match(await readFile(join(options.root, '.codex/config.toml'), 'utf8'), /^model = "custom-model"/);
   const monitor = await configureAgent('both', { ...options, monitor: true }), json = JSON.parse(await readFile(join(monitor.workspace, '.mcp.json'), 'utf8')), toml = await readFile(join(monitor.workspace, '.codex/config.toml'), 'utf8');
@@ -50,4 +51,25 @@ test('native upgrade retires only unchanged owned app bridges and upgrades an ex
   const modified = JSON.parse(await readFile(join(options.root, '.mcp.json'), 'utf8')); modified.mcpServers.playwright.command = 'custom bridge'; await writeFile(join(options.root, '.mcp.json'), JSON.stringify(modified));
   const before = await readFile(join(options.root, '.codex/config.toml'), 'utf8');
   await assert.rejects(configureAgent('both', options), /No setup files were changed/); assert.equal(await readFile(join(options.root, '.codex/config.toml'), 'utf8'), before);
+});
+
+test('re-running setup keeps a project already on the published Tabbio endpoint, and leaves the sign-up door when it is switched off', async t => {
+  const options = await fixture(t);
+  const workspace = options.root;
+  const read = async () => JSON.parse(await readFile(join(workspace, '.mcp.json'), 'utf8')).mcpServers.tabbio.url;
+  const answer = JSON.stringify({ jsonrpc: '2.0', id: 1, result: { serverInfo: { name: 'Tabbio (sign up)' } } });
+  const doorOn = async () => new Response(answer, { status: 200, headers: { 'content-type': 'application/json' } });
+  const doorOff = async () => new Response('{"error":"not_found"}', { status: 404 });
+  const env = { ...process.env }; delete env.TAWDHEEF_TABBIO_MCP_URL;
+  // A first setup while the door answers: the door.
+  await configureAgent('claude-code', { ...options, env, include: ['tabbio'], probeTabbio: true, fetch: doorOn });
+  assert.equal(await read(), 'https://server.tabbio.com/api/mcp/start?client=tawdheef');
+  // The door switched off: re-running falls back to the published endpoint.
+  await configureAgent('claude-code', { ...options, env, include: ['tabbio'], probeTabbio: true, fetch: doorOff });
+  assert.equal(await read(), 'https://server.tabbio.com/api/mcp');
+  // On again later: a project on the published endpoint keeps it (no probe at all).
+  let probed = false;
+  await configureAgent('claude-code', { ...options, env, include: ['tabbio'], probeTabbio: true, fetch: async () => { probed = true; return doorOn(); } });
+  assert.equal(await read(), 'https://server.tabbio.com/api/mcp');
+  assert.equal(probed, false);
 });
