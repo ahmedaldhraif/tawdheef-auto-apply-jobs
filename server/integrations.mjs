@@ -18,6 +18,9 @@ export function tabbioMcpUrl(env = process.env) {
   try { url = new URL(raw); } catch { throw new Error('TAWDHEEF_TABBIO_MCP_URL must be a full URL, for example https://server.tabbio.com/api/mcp.'); }
   const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname);
   if (!(url.protocol === 'https:' || (url.protocol === 'http:' && loopback))) throw new Error('TAWDHEEF_TABBIO_MCP_URL must use https (http only on this computer).');
+  // A Tabbio host (production or staging) or this computer: the agent is told to sign in there.
+  const tabbioHost = /^([a-z0-9-]+\.)*tabbio\.(com|dev)$/.test(url.hostname);
+  if (!tabbioHost && !loopback) throw new Error('TAWDHEEF_TABBIO_MCP_URL must be a Tabbio host (tabbio.com or tabbio.dev) or this computer.');
   if (url.username || url.password || url.search || url.hash) throw new Error('TAWDHEEF_TABBIO_MCP_URL must not contain credentials, a query or a fragment.');
   if (!/^\/api\/mcp(\/start)?$/.test(url.pathname.replace(/\/$/, ''))) throw new Error('TAWDHEEF_TABBIO_MCP_URL must end in /api/mcp or /api/mcp/start.');
   return `${url.origin}${url.pathname.replace(/\/$/, '')}`;
@@ -43,12 +46,18 @@ export async function resolveTabbioMcpUrl({ env = process.env, probe = false, fe
   try {
     const response = await fetchImpl(TABBIO_SIGNUP_MCP_URL, {
       method: 'POST',
+      redirect: 'manual',
       headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'tawdheef-setup', version: '1' } } }),
       signal: AbortSignal.timeout(timeoutMs),
     });
-    await response.body?.cancel?.().catch(() => {});
-    return response.ok ? TABBIO_SIGNUP_MCP_URL : TABBIO_MCP_URL;
+    if (!response.ok) { await response.body?.cancel?.().catch(() => {}); return TABBIO_MCP_URL; }
+    // Only a real MCP answer from Tabbio counts (not a captive portal's 200 page).
+    const text = (await response.text()).slice(0, 20_000);
+    const line = text.split('\n').find(row => row.startsWith('data:'));
+    let answer = null;
+    try { answer = JSON.parse(line ? line.slice(5) : text); } catch { return TABBIO_MCP_URL; }
+    return /tabbio/i.test(String(answer?.result?.serverInfo?.name ?? '')) ? TABBIO_SIGNUP_MCP_URL : TABBIO_MCP_URL;
   } catch {
     return TABBIO_MCP_URL;
   }

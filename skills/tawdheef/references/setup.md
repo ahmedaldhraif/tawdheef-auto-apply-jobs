@@ -38,6 +38,9 @@ the app. Read the intended checkout's AGENTS.md and docs/FIRST-RUN.md.
    connected yet: follow those tools to sign them in, or create their free
    account and CV, with a code sent to their email (no password, nothing to
    paste). Show the terms notice those tools return before the account is made.
+   If the tabbio server fails to connect and its URL ends in `/api/mcp/start`,
+   Tabbio has switched that door off: re-run `npm run agent -- <client> --tabbio`
+   (it falls back to the published endpoint and its browser sign-in).
    Read the actual authorized CV through the native client. Report only CV
    reference/update metadata, never full CV text. No invented experience,
    visibility change, sharing, publishing or editing to make setup pass.

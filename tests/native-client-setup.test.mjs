@@ -52,3 +52,24 @@ test('native upgrade retires only unchanged owned app bridges and upgrades an ex
   const before = await readFile(join(options.root, '.codex/config.toml'), 'utf8');
   await assert.rejects(configureAgent('both', options), /No setup files were changed/); assert.equal(await readFile(join(options.root, '.codex/config.toml'), 'utf8'), before);
 });
+
+test('re-running setup keeps a project already on the published Tabbio endpoint, and leaves the sign-up door when it is switched off', async t => {
+  const options = await fixture(t);
+  const workspace = options.root;
+  const read = async () => JSON.parse(await readFile(join(workspace, '.mcp.json'), 'utf8')).mcpServers.tabbio.url;
+  const answer = JSON.stringify({ jsonrpc: '2.0', id: 1, result: { serverInfo: { name: 'Tabbio (sign up)' } } });
+  const doorOn = async () => new Response(answer, { status: 200, headers: { 'content-type': 'application/json' } });
+  const doorOff = async () => new Response('{"error":"not_found"}', { status: 404 });
+  const env = { ...process.env }; delete env.TAWDHEEF_TABBIO_MCP_URL;
+  // A first setup while the door answers: the door.
+  await configureAgent('claude-code', { ...options, env, include: ['tabbio'], probeTabbio: true, fetch: doorOn });
+  assert.equal(await read(), 'https://server.tabbio.com/api/mcp/start');
+  // The door switched off: re-running falls back to the published endpoint.
+  await configureAgent('claude-code', { ...options, env, include: ['tabbio'], probeTabbio: true, fetch: doorOff });
+  assert.equal(await read(), 'https://server.tabbio.com/api/mcp');
+  // On again later: a project on the published endpoint keeps it (no probe at all).
+  let probed = false;
+  await configureAgent('claude-code', { ...options, env, include: ['tabbio'], probeTabbio: true, fetch: async () => { probed = true; return doorOn(); } });
+  assert.equal(await read(), 'https://server.tabbio.com/api/mcp');
+  assert.equal(probed, false);
+});

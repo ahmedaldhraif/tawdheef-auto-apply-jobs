@@ -15,6 +15,20 @@ async function existingSourceWorkspace(workspace) {
   } catch { return false; }
 }
 
+/** The Tabbio URL this project's settings already hold, if any (Claude Code JSON or Codex TOML). */
+async function previousTabbioUrl(workspace) {
+  try {
+    const json = JSON.parse(await readFile(join(workspace, '.mcp.json'), 'utf8'));
+    if (typeof json?.mcpServers?.tabbio?.url === 'string') return json.mcpServers.tabbio.url;
+  } catch {}
+  try {
+    const toml = await readFile(join(workspace, '.codex/config.toml'), 'utf8');
+    const match = toml.match(/\[mcp_servers\.tabbio\][^[]*?\burl\s*=\s*"([^"]+)"/);
+    if (match) return match[1];
+  } catch {}
+  return null;
+}
+
 export async function configureAgent(client, options = {}) {
   if (!['codex', 'claude-code', 'both'].includes(client)) throw new Error('Choose codex, claude-code or both. Example: npm run agent -- codex');
   const root = resolve(options.root || INTEGRATIONS_ROOT);
@@ -31,7 +45,13 @@ export async function configureAgent(client, options = {}) {
   const previousIncludes = clients.flatMap(selected => manifest.clients[selected]?.included || []).filter(name => name === 'tabbio');
   const include = options.monitor ? [] : [...new Set([...(options.include || []), ...previousIncludes])];
   // Only the command line probes (one anonymous request); tests and callers pass a URL or get the published one.
-  const tabbioMcpUrl = include.includes('tabbio') ? options.tabbioMcpUrl || await resolveTabbioMcpUrl({ probe: options.probeTabbio === true }) : undefined;
+  // A project already on the published endpoint keeps it (someone signed in there stays signed in);
+  // only a first setup, or a project on the sign-up door, asks again (a door switched off falls back).
+  const previousTabbio = include.includes('tabbio') ? await previousTabbioUrl(workspace) : null;
+  const keepPrevious = previousTabbio && !previousTabbio.endsWith('/api/mcp/start') && !(options.env || process.env).TAWDHEEF_TABBIO_MCP_URL;
+  const tabbioMcpUrl = include.includes('tabbio')
+    ? options.tabbioMcpUrl || (keepPrevious ? previousTabbio : await resolveTabbioMcpUrl({ env: options.env || process.env, probe: options.probeTabbio === true, ...(options.fetch ? { fetch: options.fetch } : {}) }))
+    : undefined;
   const clientConfigs = Object.fromEntries(await Promise.all(clients.map(async selected => [selected, await createClientConfig({ ...options, ...(tabbioMcpUrl ? { tabbioMcpUrl } : {}), root, dataDir: paths.dataDir, include, mode, assistant: selected, ...(options.monitor ? { monitorAssistant: selected } : {}) })])));
   const config = clientConfigs[clients[0]];
   const skills = [];
